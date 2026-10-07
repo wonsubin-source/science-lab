@@ -84,6 +84,8 @@
   #toast.err{background:var(--bad)}
   .planbox{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:#fbfcfa;margin-top:8px;-webkit-overflow-scrolling:touch}
   .planbox svg{display:block;min-width:540px;width:100%;height:auto}
+  .planbox.fit svg{min-width:0}
+  .room h3{font-size:17px;margin:18px 2px 0}
   .cabsvg{margin-top:8px;overflow-x:auto} .cabsvg svg{display:block;margin:0 auto;max-width:100%;height:auto}
   .sec{font-size:13px;color:var(--muted);margin:16px 0 2px;font-weight:600}
   .swipe{font-weight:400;display:none} @media(max-width:600px){.swipe{display:inline}}
@@ -102,11 +104,11 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
+<script src="config.js"></script>
 <script>
-  // ▼ 여기 두 줄만 바꾸세요 ▼
-  window.GAS_API = 'https://script.google.com/macros/s/AKfycbwH2XGKzd7RFAcuzb8cAVGtBhXhwRVTv_3dt8v6PdKC0ZHndI2mz0NbFmauYKxmhNWF_A/exec';       // 학생용 웹 앱 주소 (https://script.google.com/macros/s/…/exec)
-  window.TEACHER_URL = 'https://script.google.com/macros/s/AKfycbyFU-WztuLZC6EukLxKd1J6PPDE9MhqIZQ5BWDQbMwF-9Z79SspDgW3KgS9Xw0MKqm9TA/exec';   // 교사용 웹 앱 주소 (비워 두면 '선생님용' 링크가 안 보여요)
-  // ▲ 여기까지 ▲
+  // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
+  if (typeof window.GAS_API !== 'string') window.GAS_API = '';
+  if (typeof window.TEACHER_URL !== 'string') window.TEACHER_URL = '';
   const BOOT = { mode: 'student', data: null, studentUrl: '' };
 </script>
 <script>
@@ -216,7 +218,7 @@ function start() {
   if (HOSTED) {
     if (!/^https:\/\/script\.google\.com\//.test(window.GAS_API)) {
       $('#top').innerHTML = '<div><h1>과학실 교구 검색</h1></div>';
-      $('#main').innerHTML = '<div class="panel"><h3>연결 주소가 필요해요</h3><p>index.html 맨 위의 <b>GAS_API</b>에 학생용 웹 앱 주소(https://script.google.com/…/exec)를 넣어 주세요.</p></div>';
+      $('#main').innerHTML = '<div class="panel"><h3>연결 주소가 필요해요</h3><p>GitHub 저장소의 <b>config.js</b> 파일에 학생용 웹 앱 주소(https://script.google.com/…/exec)를 넣어 주세요.</p></div>';
       return;
     }
     const cached = loadCache();   // 지난번 데이터로 먼저 띄우고, 새 데이터로 바로 바꿈
@@ -259,10 +261,13 @@ function planSVG(spaceId, hiCab, clickable) {
   cabs.forEach(c => {
     const [x, y, w, h] = c.box, X = (x + PAD) * U, Y = (y + PAD) * U, ww = w * U - 4, hh = h * U - 4, hi = c.id === hiCab;
     const label = ww > 100 ? c.name : shortCab(c.name);
+    const m = ww < 70 && /^(\D+)(\d+)$/.exec(label);   // 좁은 사물함은 "지구 / 1"처럼 두 줄로
     g += '<g class="' + (clickable ? 'plan-cab' : '') + '" data-pcab="' + esc(c.id) + '">' +
       '<rect' + (hi ? ' class="hi"' : '') + ' x="' + (X + 2) + '" y="' + (Y + 2) + '" width="' + ww + '" height="' + hh + '" rx="5" fill="' + (hi ? '#0f6e5a' : '#ffffff') + '" stroke="' + (hi ? '#0b4f41' : '#b9c3be') + '" stroke-width="' + (hi ? 3 : 1.2) + '"/>' +
-      '<text x="' + (X + 2 + ww / 2) + '" y="' + (Y + 2 + hh / 2) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (ww > 100 ? 15 : 13.5) + '" font-weight="' + (hi ? 700 : 500) + '" fill="' + (hi ? '#ffffff' : '#1d2321') + '">' + esc(label) + '</text>' +
-      (clickable && count[c.id] ? '<text x="' + (X + ww - 2) + '" y="' + (Y + 13) + '" text-anchor="end" font-size="10" fill="#66706c">' + count[c.id] + '</text>' : '') + '</g>';
+      (m ? '<text x="' + (X + 2 + ww / 2) + '" text-anchor="middle" font-size="15" font-weight="' + (hi ? 700 : 600) + '" fill="' + (hi ? '#ffffff' : '#1d2321') + '">' +
+            '<tspan x="' + (X + 2 + ww / 2) + '" y="' + (Y + 2 + hh / 2 - 3) + '">' + esc(m[1]) + '</tspan><tspan x="' + (X + 2 + ww / 2) + '" y="' + (Y + 2 + hh / 2 + 14) + '">' + esc(m[2]) + '</tspan></text>'
+         : '<text x="' + (X + 2 + ww / 2) + '" y="' + (Y + 2 + hh / 2) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (ww > 100 ? 17 : 15) + '" font-weight="' + (hi ? 700 : 600) + '" fill="' + (hi ? '#ffffff' : '#1d2321') + '">' + esc(label) + '</text>') +
+      (clickable && count[c.id] && ww >= 70 ? '<text x="' + (X + ww - 2) + '" y="' + (Y + 13) + '" text-anchor="end" font-size="10" fill="#66706c">' + count[c.id] + '</text>' : '') + '</g>';
   });
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc((d.spaces.find(s => s.id === spaceId) || {}).name || '') + ' 평면도">' + g + '</svg>';
 }
@@ -322,11 +327,8 @@ function viewItems() {
   const d = st.data, T = st.mode === 'teacher';
   const cats = ['전체'].concat((d.opt && d.opt.cat) || ['물리','화학','생명','지구','공통','학용품','안전']);
   $('#main').innerHTML =
-    '<div class="bar"><div class="chips" style="margin:0">' +
-      '<button class="chip' + (st.view === 'search' ? ' on' : '') + '" data-v="search">이름으로 찾기</button>' +
-      '<button class="chip' + (st.view === 'cab' ? ' on' : '') + '" data-v="cab">평면도로 보기</button></div>' +
-      (T ? '<button class="btn pri" id="newItem">+ 새 교구</button>' : '') + '</div>' +
-    (st.view === 'search'
+    (T ? '<div class="bar"><span class="note">교구 ' + d.items.length + '개</span><button class="btn pri" id="newItem">+ 새 교구</button></div>' : '') +
+    (true
       ? '<div class="search"><input id="q" type="text" enterkeyhint="search" placeholder="찾는 교구 이름 (예: 비커, ㅂㅋ)" value="' + esc(st.q) + '" autocomplete="off"><button class="x" id="qx" aria-label="지우기">×</button></div>' +
         '<div class="chips" id="cats">' + cats.map(c => '<button class="chip' + (st.cat === c ? ' on' : '') + '" data-c="' + c + '">' + c + '</button>').join('') + '</div>' +
         '<div id="res"></div>'
@@ -347,8 +349,12 @@ function drawItems() {
   const list = d.items.filter(it => (st.cat === '전체' || it.cat === st.cat) && matches(st.q, it.name, it.kw, it.cat));
   const box = $('#res');
   if (!st.q && st.cat === '전체') {
-    box.innerHTML = '<p class="hint">교구 ' + d.items.length + '개가 등록되어 있어요. 이름 일부나 초성(ㅂㅋ → 비커)으로 찾을 수 있어요.</p>' + itemCards(list.slice(0, 30)) +
-      (list.length > 30 ? '<p class="hint">… 검색어를 입력하면 나머지도 찾을 수 있어요.</p>' : '');
+    const rooms = d.spaces.filter(s => d.cabs.some(c => c.space === s.id && c.box));
+    box.innerHTML = '<p class="hint">사물함을 누르면 안에 든 교구가 보여요. 위에서 이름이나 초성(ㅂㅋ → 비커)으로 찾을 수도 있어요.</p>' +
+      rooms.map(s => '<div class="room"><h3>' + esc(s.name) + '</h3><div class="planbox fit">' + planSVG(s.id, '', true) + '</div></div>').join('') +
+      (rooms.length ? '' : itemCards(list.slice(0, 30)));
+    box.querySelectorAll('[data-pcab]').forEach(g => g.onclick = () => cabDetail(g.dataset.pcab));
+    return;
   } else {
     box.innerHTML = list.length ? '<p class="hint">' + list.length + '개 찾았어요</p>' + itemCards(list) : '<div class="empty">찾는 교구가 없어요.<br>다른 이름이나 초성으로 찾아보세요.</div>';
   }
@@ -405,6 +411,19 @@ function drawCabList() {
   });
   $('#cabList').innerHTML = html.replace('<div class="group"><h3>', '<div class="group"><h3>목록으로 보기 · ');
   bindItemCards($('#cabList'));
+}
+function cabDetail(cabId) {
+  const d = st.data, c = d.cabs.find(x => x.id === cabId) || {}, sp = d.spaces.find(s => s.id === c.space) || {};
+  const items = d.items.filter(it => it.cab === cabId), byKan = {};
+  (d.kans || []).filter(k => k.cab === cabId).forEach(k => { byKan[k.name] = []; });
+  items.forEach(it => (byKan[it.kanName] = byKan[it.kanName] || []).push(it));
+  openModal('<h2>' + esc(c.name || '') + '</h2><div class="note">' + esc(sp.name || '') + ' · 교구 ' + items.length + '개</div>' +
+    (c.desc ? '<p>📍 ' + esc(c.desc) + '</p>' : '') +
+    '<div class="cabsvg">' + cabSVG(cabId, '') + '</div>' +
+    Object.keys(byKan).map(k => '<div class="sec">' + esc(k) + '</div>' + (byKan[k].length ? '<div class="badges">' + byKan[k].map(it =>
+      '<button class="b" style="border:0;cursor:pointer;font-size:14px;padding:4px 9px" data-item="' + esc(it.id) + '">' + esc(it.name) + (it.qty !== '' ? ' · ' + num(it.qty) + esc(it.unit || '') : '') + '</button>').join('') + '</div>'
+      : '<div class="note">비어 있어요</div>')).join(''));
+  $('#modal').querySelectorAll('[data-item]').forEach(b => b.onclick = () => itemDetail(b.dataset.item));
 }
 function itemDetail(id) {
   const d = st.data, it = d.items.find(x => x.id === id); if (!it) return;
