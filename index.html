@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>과학실 교구 검색</title>
+<style>
+  :root{--bg:#f6f7f5;--card:#fff;--ink:#1d2321;--muted:#66706c;--line:#e2e6e3;--accent:#0f6e5a;--accent-soft:#e3f2ed;
+    --warn:#b45309;--warn-soft:#fdf0dc;--bad:#b42318;--bad-soft:#fde8e6;--ok:#1a7f37;--ok-soft:#e6f4ea;--r:12px}
+  *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;font-size:16px;line-height:1.5}
+  button,input,select,textarea{font:inherit;color:inherit}
+  .wrap{max-width:880px;margin:0 auto;padding:16px}
+  header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:20px 16px 8px;max-width:880px;margin:0 auto}
+  header.top h1{margin:0;font-size:22px;letter-spacing:-.02em} header.top .sub{color:var(--muted);font-size:14px}
+  header.top .who{font-size:13px;color:var(--muted);text-align:right}
+  header.top .who a{color:var(--accent)}
+  .tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 16px 0;max-width:880px;margin:0 auto;scrollbar-width:none}
+  .tab{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;white-space:nowrap;cursor:pointer;font-size:15px}
+  .tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .search{position:relative;margin:8px 0 10px}
+  .search input{width:100%;padding:14px 44px 14px 16px;border:1.5px solid var(--line);border-radius:var(--r);background:var(--card);font-size:17px;outline:none}
+  .search input:focus{border-color:var(--accent)}
+  .search .x{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:20px;color:var(--muted);cursor:pointer;padding:6px 10px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+  .chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 12px;font-size:14px;cursor:pointer}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .hint{color:var(--muted);font-size:13px;margin:4px 2px 12px}
+  .list{display:flex;flex-direction:column;gap:8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;cursor:pointer;text-align:left;width:100%}
+  .card:hover{border-color:#c8d0cc}
+  .card .t{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+  .card .n{font-weight:600;font-size:16.5px} .card .q{color:var(--muted);font-size:14px;white-space:nowrap}
+  .card .p{color:var(--muted);font-size:14px;margin-top:2px}
+  .card .p b{color:var(--ink);font-weight:600}
+  .badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+  .b{font-size:12px;border-radius:6px;padding:1px 7px;background:#eef0ef;color:#3e4643}
+  .b.bad{background:var(--bad-soft);color:var(--bad)} .b.warn{background:var(--warn-soft);color:var(--warn)}
+  .b.ok{background:var(--ok-soft);color:var(--ok)} .b.ac{background:var(--accent-soft);color:var(--accent)}
+  mark{background:#fff1a8;padding:0 1px;border-radius:2px}
+  .empty{color:var(--muted);text-align:center;padding:40px 10px}
+  .group h3{font-size:15px;margin:18px 2px 8px;color:var(--muted);font-weight:600}
+  .cabbox{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+  .cabbox summary{padding:12px 14px;cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between}
+  .cabbox summary::-webkit-details-marker{display:none}
+  .cabbox .kan{padding:6px 14px 10px;border-top:1px solid var(--line)}
+  .cabbox .kan .kn{font-size:13px;color:var(--muted);margin:6px 0 2px}
+  .cabbox .kan button{border:0;background:none;padding:3px 0;cursor:pointer;display:block;text-align:left;color:var(--ink)}
+  .modal-bg{position:fixed;inset:0;background:rgba(20,25,23,.45);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+  @media(min-width:700px){.modal-bg{align-items:center}}
+  .modal{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:18px 18px 22px}
+  @media(min-width:700px){.modal{border-radius:16px}}
+  .modal h2{margin:0 0 4px;font-size:20px} .modal .close{float:right;border:0;background:none;font-size:24px;cursor:pointer;color:var(--muted);margin:-6px -6px 0 0}
+  .path{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:14px 0}
+  .path div{background:var(--accent-soft);border-radius:10px;padding:10px;text-align:center}
+  .path small{display:block;color:var(--accent);font-size:12px} .path strong{font-size:17px}
+  .plan{width:100%;border-radius:10px;border:1px solid var(--line);margin-top:8px}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;font-size:14.5px;margin:10px 0}
+  .kv dt{color:var(--muted)} .kv dd{margin:0}
+  .form{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-top:12px}
+  .form label{display:flex;flex-direction:column;font-size:13px;color:var(--muted);gap:4px}
+  .form label.full{grid-column:1/-1}
+  .form input,.form select,.form textarea{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fff;font-size:15px;color:var(--ink)}
+  .form .chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink);font-size:15px}
+  @media(max-width:520px){.form{grid-template-columns:1fr}}
+  .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+  .btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 16px;cursor:pointer;font-size:15px}
+  .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn:disabled{opacity:.5;cursor:default}
+  .bar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:6px 0 10px;flex-wrap:wrap}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:12px}
+  .panel h3{margin:0 0 8px;font-size:16px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px;cursor:pointer;text-align:left}
+  .stat .v{font-size:24px;font-weight:700} .stat .l{font-size:13px;color:var(--muted)}
+  table.mini{width:100%;border-collapse:collapse;font-size:14px}
+  table.mini th,table.mini td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:top}
+  table.mini th{color:var(--muted);font-weight:500;font-size:13px}
+  .scroll{overflow-x:auto}
+  .note{font-size:13px;color:var(--muted)}
+  .alert{border-radius:10px;padding:10px 12px;font-size:14px;margin:10px 0}
+  .alert.warn{background:var(--warn-soft);color:#7a3e05} .alert.bad{background:var(--bad-soft);color:var(--bad)} .alert.ac{background:var(--accent-soft);color:#0b4f41}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:99;max-width:90vw;display:none}
+  #toast.err{background:var(--bad)}
+  .planbox{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:#fbfcfa;margin-top:8px;-webkit-overflow-scrolling:touch}
+  .planbox svg{display:block;min-width:540px;width:100%;height:auto}
+  .cabsvg{margin-top:8px;overflow-x:auto} .cabsvg svg{display:block;margin:0 auto;max-width:100%;height:auto}
+  .sec{font-size:13px;color:var(--muted);margin:16px 0 2px;font-weight:600}
+  .swipe{font-weight:400;display:none} @media(max-width:600px){.swipe{display:inline}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}} .hi{animation:pulse 1.1s ease-in-out infinite}
+  @media (prefers-reduced-motion: reduce){.hi{animation:none}}
+  .plan-cab{cursor:pointer}
+  .pending{opacity:.62} tr.pending td{color:var(--muted)}
+  .loading{text-align:center;color:var(--muted);padding:60px 0}
+  .spin{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;margin:0 auto 10px;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header class="top" id="top"></header>
+<nav class="tabs" id="tabs"></nav>
+<main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
+<div id="modal"></div>
+<div id="toast"></div>
+<script>
+  // ▼ 여기 두 줄만 바꾸세요 ▼
+  window.GAS_API = 'https://script.google.com/macros/s/AKfycbwH2XGKzd7RFAcuzb8cAVGtBhXhwRVTv_3dt8v6PdKC0ZHndI2mz0NbFmauYKxmhNWF_A/exec';       // 학생용 웹 앱 주소 (https://script.google.com/macros/s/…/exec)
+  window.TEACHER_URL = 'https://script.google.com/macros/s/AKfycbyFU-WztuLZC6EukLxKd1J6PPDE9MhqIZQ5BWDQbMwF-9Z79SspDgW3KgS9Xw0MKqm9TA/exec';   // 교사용 웹 앱 주소 (비워 두면 '선생님용' 링크가 안 보여요)
+  // ▲ 여기까지 ▲
+  const BOOT = { mode: 'student', data: null, studentUrl: '' };
+</script>
+<script>
+(function(){
+'use strict';
+const st = { mode: BOOT.mode, data: null, tab: 'items', q: '', cat: '전체', view: 'search', rq: '', rf: '전체', logRid: '' };
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => (v === '' || v == null) ? '' : (Math.round(Number(v) * 100) / 100).toLocaleString('ko-KR');
+const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+
+// ── 검색(초성 포함) ──
+const CHO = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
+const cho = s => Array.from(String(s || '')).map(ch => { const c = ch.charCodeAt(0) - 0xAC00; return (c >= 0 && c < 11172) ? CHO[Math.floor(c / 588)] : ch; }).join('');
+const isCho = q => /^[ㄱ-ㅎ]+$/.test(q);
+function matches(q, ...fields) {
+  q = norm(q); if (!q) return true;
+  const text = norm(fields.join(' '));
+  return isCho(q) ? cho(text).includes(q) : text.includes(q);
+}
+function hl(text, q) {
+  text = String(text || ''); q = String(q || '').trim();
+  if (!q || isCho(norm(q))) return esc(text);
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  return i < 0 ? esc(text) : esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length));
+}
+
+// ── 서버 호출 ──
+const HOSTED = typeof window.GAS_API === 'string';   // GitHub 등 외부에 올린 학생용 화면
+function call(fn, ...args) {
+  if (HOSTED) {
+    const kind = fn === 'getVersion' ? 'ver' : fn === 'getPublicData' ? 'public' : null;
+    if (!kind) return Promise.reject(new Error('이 화면에서는 볼 수만 있어요.'));
+    return fetch(window.GAS_API + (window.GAS_API.indexOf('?') < 0 ? '?' : '&') + 'api=' + kind, { cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
+      .then(j => { if (j && j.error) throw new Error(j.error); return kind === 'ver' ? j.ver : j; });
+  }
+  return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(e => rej(e && e.message ? e : new Error(String(e))))[fn](...args));
+}
+function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = err ? 'err' : ''; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', err ? 6000 : 2600); }
+function closeModal() { $('#modal').innerHTML = ''; if (st.dirty) { st.dirty = false; rerender(); } }
+// 입력 중인 칸의 포커스를 지키면서 다시 그리기
+function rerender() {
+  if (!st.data) return;
+  if ($('#modal').innerHTML) { st.dirty = true; return; }
+  const a = document.activeElement, id = a && a.id, pos = a && a.selectionStart;
+  render();
+  if (id) { const el = document.getElementById(id); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } }
+}
+
+// ── 동기화: 시트가 바뀌면(버전 변경) 새 내용을 받아 옴 ──
+st.saving = 0;
+function dataFn() { return st.mode === 'teacher' ? 'getTeacherData' : 'getPublicData'; }
+function refresh() {
+  return call(dataFn()).then(d => { if (st.saving > 0) { st.stale = true; return; } st.data = d; st.ver = d.ver; saveCache(d); rerender(); }).catch(() => {});
+}
+function poll() {
+  if (document.hidden || st.saving > 0 || !st.data) return;
+  call('getVersion').then(v => { if (String(v) !== String(st.ver)) refresh(); }).catch(() => {});
+}
+function loadCache() { if (!HOSTED) return null; try { return JSON.parse(localStorage.getItem('sci_pub') || 'null'); } catch (e) { return null; } }
+function saveCache(d) { if (!HOSTED) return; try { localStorage.setItem('sci_pub', JSON.stringify(d)); } catch (e) {} }
+let syncing = false;
+function startSync() {
+  if (syncing) return; syncing = true;
+  setInterval(poll, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+}
+// 저장 요청을 보내고, 화면은 이미 바뀐 상태로 둔다. 실패하면 되돌린다.
+function save(fn, arg, onOk, onFail) {
+  st.saving++;
+  return call(fn, arg).then(res => {
+    st.saving--;
+    const others = String(res.prevVer) !== String(st.ver);
+    st.ver = res.ver;
+    onOk(res);
+    if ((others || st.stale) && st.saving === 0) { st.stale = false; refresh(); }
+  }).catch(err => { st.saving--; onFail(err); });
+}
+const KAN = id => (st.data.kans || []).find(k => k.id === id);
+function placeOf(kanId) {
+  const k = KAN(kanId); if (!k) return { kanName: '', cabName: '', spaceName: '', cab: '', space: '', cabDesc: '' };
+  const p = k.label.split(' › '); const c = st.data.cabs.find(x => x.id === k.cab) || {};
+  return { spaceName: p[0] || '', cabName: p[1] || '', kanName: p.slice(2).join(' › '), cab: k.cab, space: c.space || '', cabDesc: c.desc || '' };
+}
+const driveImg = l => { l = String(l || '').trim(); const m = l.match(/\/d\/([\w-]{20,})/) || l.match(/[?&]id=([\w-]{20,})/); return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1600' : l; };
+const pend = x => x && x._pending ? ' <span class="b ac">저장 중</span>' : '';
+function openModal(html) {
+  $('#modal').innerHTML = '<div class="modal-bg" data-bg><div class="modal" role="dialog" aria-modal="true"><button class="close" aria-label="닫기" data-close>×</button>' + html + '</div></div>';
+}
+document.addEventListener('click', e => {
+  if (e.target.matches('[data-close]') || e.target.matches('[data-bg]')) closeModal();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ── 시작 ──
+function start() {
+  if (st.mode === 'denied') {
+    $('#top').innerHTML = '<div><h1>과학실 교구 검색</h1></div>';
+    $('#main').innerHTML = '<div class="panel"><h3>교사 전용 주소예요</h3><p>이 주소는 등록된 선생님만 쓸 수 있어요.' +
+      (BOOT.studentUrl ? ' 교구를 찾으려면 <a href="' + esc(BOOT.studentUrl) + '">학생용 검색</a>을 이용해 주세요.' : ' 학생은 학생용 주소를 이용해 주세요.') +
+      '</p><p class="note">선생님이라면: 설정 시트에 이메일이 등록되어 있는지, 이 구글 시트가 내 계정에 편집자로 공유되어 있는지 확인해 주세요.</p></div>';
+    return;
+  }
+  if (BOOT.data) { st.data = BOOT.data; st.ver = BOOT.data.ver; render(); startSync(); return; }
+  if (HOSTED) {
+    if (!/^https:\/\/script\.google\.com\//.test(window.GAS_API)) {
+      $('#top').innerHTML = '<div><h1>과학실 교구 검색</h1></div>';
+      $('#main').innerHTML = '<div class="panel"><h3>연결 주소가 필요해요</h3><p>index.html 맨 위의 <b>GAS_API</b>에 학생용 웹 앱 주소(https://script.google.com/…/exec)를 넣어 주세요.</p></div>';
+      return;
+    }
+    const cached = loadCache();   // 지난번 데이터로 먼저 띄우고, 새 데이터로 바로 바꿈
+    if (cached) { st.data = cached; st.ver = cached.ver; render(); }
+  }
+  call(dataFn()).then(d => { const first = !st.data; st.data = d; st.ver = d.ver; saveCache(d); first ? render() : rerender(); startSync(); }).catch(err => {
+    if (st.data) { toast('최신 내용을 불러오지 못했어요. 잠시 후 다시 시도해요.', true); startSync(); return; }
+    $('#main').innerHTML = '<div class="panel"><h3>불러오지 못했어요</h3><p>' + esc(err.message) + '</p>' +
+      (HOSTED ? '<p class="note">학생용 배포의 액세스가 "모든 사용자"인지, GAS_API 주소가 학생용 주소인지 확인해 주세요.</p>' : '') + '</div>';
+  });
+}
+
+function render() {
+  const d = st.data, T = st.mode === 'teacher';
+  $('#top').innerHTML = '<div><h1>과학실 교구 검색</h1><div class="sub">' + esc([d.school, T ? '교사용' : ''].filter(Boolean).join(' · ')) + '</div></div>' +
+    (T ? '<div class="who">' + esc(d.me) + '<br><a href="' + esc(d.sheetUrl) + '" target="_blank">구글 시트 열기</a></div>'
+       : (HOSTED && window.TEACHER_URL ? '<div class="who"><a href="' + esc(window.TEACHER_URL) + '">선생님용</a></div>' : ''));
+  const tabs = T ? [['items','교구'],['rg','시약'],['log','출납 기록'],['waste','폐수·폐시약'],['check','점검']] : [];
+  $('#tabs').innerHTML = tabs.map(([k, l]) => '<button class="tab' + (st.tab === k ? ' on' : '') + '" data-tab="' + k + '">' + l + '</button>').join('');
+  $('#tabs').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { st.tab = b.dataset.tab; render(); });
+  const v = { items: viewItems, rg: viewRg, log: viewLog, waste: viewWaste, check: viewCheck }[T ? st.tab : 'items'];
+  v();
+}
+
+// ───────────────────────── 평면도 ─────────────────────────
+const U = 44, PAD = 0.5;
+function shortCab(n) {
+  return String(n || '').replace('운동과 에너지', '운동').replace('생명과학', '생명').replace('지구과학', '지구')
+    .replace(' 사물함', '').replace(/\s+/g, '');
+}
+function planSVG(spaceId, hiCab, clickable) {
+  const d = st.data, cabs = d.cabs.filter(c => c.space === spaceId && c.box);
+  if (!cabs.length) return '';
+  const maxX = Math.max(...cabs.map(c => c.box[0] + c.box[2])), maxY = Math.max(...cabs.map(c => c.box[1] + c.box[3]));
+  const W = (maxX + PAD * 2) * U, H = (maxY + PAD * 2) * U;
+  const count = {}; d.items.forEach(it => { count[it.cab] = (count[it.cab] || 0) + 1; });
+  const roomName = (d.spaces.find(s => s.id === spaceId) || {}).name || '';
+  let g = '<rect x="4" y="4" width="' + (W - 8) + '" height="' + (H - 8) + '" rx="10" fill="none" stroke="#9aa5a0" stroke-width="2"/>' +
+    '<text x="' + (W / 2) + '" y="' + (H / 2) + '" text-anchor="middle" dominant-baseline="central" font-size="30" font-weight="700" fill="#e3e8e5">' + esc(roomName) + '</text>';
+  cabs.forEach(c => {
+    const [x, y, w, h] = c.box, X = (x + PAD) * U, Y = (y + PAD) * U, ww = w * U - 4, hh = h * U - 4, hi = c.id === hiCab;
+    const label = ww > 100 ? c.name : shortCab(c.name);
+    g += '<g class="' + (clickable ? 'plan-cab' : '') + '" data-pcab="' + esc(c.id) + '">' +
+      '<rect' + (hi ? ' class="hi"' : '') + ' x="' + (X + 2) + '" y="' + (Y + 2) + '" width="' + ww + '" height="' + hh + '" rx="5" fill="' + (hi ? '#0f6e5a' : '#ffffff') + '" stroke="' + (hi ? '#0b4f41' : '#b9c3be') + '" stroke-width="' + (hi ? 3 : 1.2) + '"/>' +
+      '<text x="' + (X + 2 + ww / 2) + '" y="' + (Y + 2 + hh / 2) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (ww > 100 ? 15 : 13.5) + '" font-weight="' + (hi ? 700 : 500) + '" fill="' + (hi ? '#ffffff' : '#1d2321') + '">' + esc(label) + '</text>' +
+      (clickable && count[c.id] ? '<text x="' + (X + ww - 2) + '" y="' + (Y + 13) + '" text-anchor="end" font-size="10" fill="#66706c">' + count[c.id] + '</text>' : '') + '</g>';
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc((d.spaces.find(s => s.id === spaceId) || {}).name || '') + ' 평면도">' + g + '</svg>';
+}
+function cabSVG(cabId, hiKan) {
+  const d = st.data, cab = d.cabs.find(c => c.id === cabId) || {};
+  const kans = (d.kans || []).filter(k => k.cab === cabId).map(k => Object.assign({ code: k.id.slice(cabId.length + 1) }, k));
+  if (!kans.length) return '';
+  let grid = [];   // rows of cells
+  const LR = kans.every(k => /^[UD][LR]\d+$/.test(k.code)), UD = kans.every(k => /^[UD]\d+$/.test(k.code));
+  if (LR) {
+    const rows = {}; kans.forEach(k => { const key = k.code[0] + k.code.slice(2); (rows[key] = rows[key] || {})[k.code[1]] = k; });
+    Object.keys(rows).sort((a, b) => (a[0] === b[0] ? Number(a.slice(1)) - Number(b.slice(1)) : (a[0] === 'U' ? -1 : 1))).forEach(key => grid.push([rows[key].L, rows[key].R]));
+  } else if (UD) {
+    kans.slice().sort((a, b) => (a.code[0] === b.code[0] ? Number(a.code.slice(1)) - Number(b.code.slice(1)) : (a.code[0] === 'U' ? -1 : 1))).forEach(k => grid.push([k]));
+  } else {
+    const nums = kans.slice().sort((a, b) => (Number(a.code) || 0) - (Number(b.code) || 0));
+    if (nums.length > 6) { const half = Math.ceil(nums.length / 2); grid.push(nums.slice(half)); grid.push(nums.slice(0, half)); }
+    else nums.forEach(k => grid.push([k]));
+  }
+  const cols = Math.max(...grid.map(r => r.length)), cw = cols === 1 ? 150 : cols === 2 ? 132 : 74, ch = 34, top = 30;
+  const W = cols * cw + 16, H = top + grid.length * ch + 12;
+  let g = '<text x="' + (W / 2) + '" y="18" text-anchor="middle" font-size="14" font-weight="700" fill="#1d2321">' + esc(cab.name || '') + '</text>' +
+    '<rect x="6" y="' + (top - 4) + '" width="' + (W - 12) + '" height="' + (grid.length * ch + 8) + '" rx="6" fill="#f1f3f1" stroke="#9aa5a0" stroke-width="1.5"/>';
+  let prevU = null;
+  grid.forEach((row, ri) => {
+    const y = top + ri * ch;
+    const isU = row[0] && /^U/.test(row[0].code);
+    if (prevU === true && isU === false) g += '<line x1="6" x2="' + (W - 6) + '" y1="' + (y - 0) + '" y2="' + y + '" stroke="#6b7671" stroke-width="2.5"/>';
+    prevU = isU;
+    row.forEach((k, ci) => {
+      if (!k) return;
+      const x = 8 + ci * cw, hi = k.id === hiKan;
+      g += '<rect' + (hi ? ' class="hi"' : '') + ' x="' + (x + 2) + '" y="' + (y + 2) + '" width="' + (cw - 4) + '" height="' + (ch - 4) + '" rx="4" fill="' + (hi ? '#0f6e5a' : '#ffffff') + '" stroke="' + (hi ? '#0b4f41' : '#c9d1cd') + '" stroke-width="' + (hi ? 2.5 : 1) + '"/>' +
+        '<text x="' + (x + cw / 2) + '" y="' + (y + ch / 2) + '" text-anchor="middle" dominant-baseline="central" font-size="12.5" font-weight="' + (hi ? 700 : 400) + '" fill="' + (hi ? '#ffffff' : '#3e4643') + '">' + esc(hi ? '▶ ' + k.name : k.name) + '</text>';
+    });
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" role="img" aria-label="' + esc(cab.name || '') + ' 칸 그림">' + g + '</svg>';
+}
+function whereBlock(kanId, cabId, spaceId) {
+  const d = st.data, sp = d.spaces.find(s => s.id === spaceId) || {};
+  const plan = planSVG(spaceId, cabId, false), front = cabId ? cabSVG(cabId, kanId) : '';
+  return (plan ? '<div class="sec">' + esc(sp.name || '') + ' 평면도 <span class="swipe">· 옆으로 밀어 볼 수 있어요</span></div><div class="planbox" data-scrollto="' + esc(cabId) + '">' + plan + '</div>' : '') +
+    (front ? '<div class="sec">사물함 안 칸 위치</div><div class="cabsvg">' + front + '</div>' : '') +
+    (sp.plan ? '<div class="sec">평면도 사진</div><img class="plan" src="' + esc(sp.plan) + '" alt="' + esc(sp.name) + ' 평면도 사진">' : '');
+}
+// 휴대폰에서 평면도를 가로로 밀어 강조된 사물함이 가운데 오게
+function centerPlans(root) {
+  (root || document).querySelectorAll('.planbox[data-scrollto]').forEach(box => {
+    const el = box.querySelector('[data-pcab="' + box.dataset.scrollto + '"] rect'); if (!el) return;
+    const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+    box.scrollLeft += (r.left + r.width / 2) - (b.left + b.width / 2);
+  });
+}
+
+// ───────────────────────── 교구 ─────────────────────────
+function viewItems() {
+  const d = st.data, T = st.mode === 'teacher';
+  const cats = ['전체'].concat((d.opt && d.opt.cat) || ['물리','화학','생명','지구','공통','학용품','안전']);
+  $('#main').innerHTML =
+    '<div class="bar"><div class="chips" style="margin:0">' +
+      '<button class="chip' + (st.view === 'search' ? ' on' : '') + '" data-v="search">이름으로 찾기</button>' +
+      '<button class="chip' + (st.view === 'cab' ? ' on' : '') + '" data-v="cab">평면도로 보기</button></div>' +
+      (T ? '<button class="btn pri" id="newItem">+ 새 교구</button>' : '') + '</div>' +
+    (st.view === 'search'
+      ? '<div class="search"><input id="q" type="text" enterkeyhint="search" placeholder="찾는 교구 이름 (예: 비커, ㅂㅋ)" value="' + esc(st.q) + '" autocomplete="off"><button class="x" id="qx" aria-label="지우기">×</button></div>' +
+        '<div class="chips" id="cats">' + cats.map(c => '<button class="chip' + (st.cat === c ? ' on' : '') + '" data-c="' + c + '">' + c + '</button>').join('') + '</div>' +
+        '<div id="res"></div>'
+      : '<div id="cabs"></div>');
+  document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { st.view = b.dataset.v; viewItems(); });
+  if (T) $('#newItem').onclick = () => itemForm(null);
+  if (st.view === 'search') {
+    const q = $('#q'); q.oninput = () => { st.q = q.value; drawItems(); };
+    $('#qx').onclick = () => { st.q = ''; q.value = ''; drawItems(); q.focus(); };
+    $('#cats').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { st.cat = b.dataset.c; viewItems(); });
+    drawItems();
+    if (!T) q.focus();
+  } else drawCabs();
+}
+function itemPath(it) { return [it.spaceName, it.cabName, it.kanName].filter(Boolean).join(' › '); }
+function drawItems() {
+  const d = st.data;
+  const list = d.items.filter(it => (st.cat === '전체' || it.cat === st.cat) && matches(st.q, it.name, it.kw, it.cat));
+  const box = $('#res');
+  if (!st.q && st.cat === '전체') {
+    box.innerHTML = '<p class="hint">교구 ' + d.items.length + '개가 등록되어 있어요. 이름 일부나 초성(ㅂㅋ → 비커)으로 찾을 수 있어요.</p>' + itemCards(list.slice(0, 30)) +
+      (list.length > 30 ? '<p class="hint">… 검색어를 입력하면 나머지도 찾을 수 있어요.</p>' : '');
+  } else {
+    box.innerHTML = list.length ? '<p class="hint">' + list.length + '개 찾았어요</p>' + itemCards(list) : '<div class="empty">찾는 교구가 없어요.<br>다른 이름이나 초성으로 찾아보세요.</div>';
+  }
+  bindItemCards(box);
+}
+function itemCards(list) {
+  return '<div class="list">' + list.map(it =>
+    '<button class="card' + (it._pending ? ' pending' : '') + '" data-item="' + esc(it.id) + '"><div class="t"><span class="n">' + hl(it.name, st.q) + pend(it) + '</span>' +
+    '<span class="q">' + (it.qty !== '' ? num(it.qty) + ' ' + esc(it.unit || '') : '') + '</span></div>' +
+    '<div class="p"><b>' + esc(it.spaceName) + '</b> › ' + esc(it.cabName) + ' › <b>' + esc(it.kanName) + '</b></div>' +
+    ((it.state && it.state !== '정상') || (st.mode === 'teacher' && it.note) ? '<div class="badges">' +
+      (it.state && it.state !== '정상' ? '<span class="b warn">' + esc(it.state) + '</span>' : '') +
+      (st.mode === 'teacher' && /확인/.test(it.note) ? '<span class="b warn">확인 필요</span>' : '') + '</div>' : '') +
+    '</button>').join('') + '</div>';
+}
+function bindItemCards(box) { box.querySelectorAll('[data-item]').forEach(b => b.onclick = () => itemDetail(b.dataset.item)); }
+function drawCabs() {
+  const d = st.data;
+  const rooms = d.spaces.filter(s => d.cabs.some(c => c.space === s.id));
+  if (!st.room || !rooms.some(r => r.id === st.room)) st.room = (rooms.find(r => r.id === 'PREP') || rooms[0] || {}).id;
+  const cabsHere = d.cabs.filter(c => c.space === st.room);
+  if (!cabsHere.some(c => c.id === st.cabSel)) st.cabSel = '';
+  const plan = planSVG(st.room, st.cabSel, true);
+  $('#cabs').innerHTML = '<div class="chips">' + rooms.map(r => '<button class="chip' + (r.id === st.room ? ' on' : '') + '" data-room="' + esc(r.id) + '">' + esc(r.name) + '</button>').join('') + '</div>' +
+    (plan ? '<p class="hint">사물함을 누르면 안에 있는 교구가 보여요.<span class="swipe"> 평면도는 옆으로 밀어 볼 수 있어요.</span></p><div class="planbox"' + (st.cabSel ? ' data-scrollto="' + esc(st.cabSel) + '"' : '') + '>' + plan + '</div>' : '') +
+    '<div id="cabDetail"></div><div id="cabList" style="margin-top:12px"></div>';
+  $('#cabs').querySelectorAll('[data-room]').forEach(b => b.onclick = () => { st.room = b.dataset.room; st.cabSel = ''; drawCabs(); });
+  $('#cabs').querySelectorAll('[data-pcab]').forEach(g => g.onclick = () => { st.cabSel = g.dataset.pcab; drawCabs(); const cd = $('#cabDetail'); if (cd) cd.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  if (st.cabSel) {
+    const items = d.items.filter(it => it.cab === st.cabSel);
+    const byKan = {}; items.forEach(it => (byKan[it.kanName] = byKan[it.kanName] || []).push(it));
+    const c = d.cabs.find(x => x.id === st.cabSel) || {};
+    $('#cabDetail').innerHTML = '<div class="panel" style="margin-top:12px"><h3>' + esc(c.name) + ' <span class="note">' + items.length + '개</span></h3>' +
+      (c.desc ? '<p class="note">📍 ' + esc(c.desc) + '</p>' : '') + '<div class="cabsvg">' + cabSVG(st.cabSel, '') + '</div>' +
+      (items.length ? Object.keys(byKan).map(k => '<div class="sec">' + esc(k) + '</div><div class="badges">' + byKan[k].map(it => '<button class="b" style="border:0;cursor:pointer;font-size:14px;padding:4px 9px" data-item="' + esc(it.id) + '">' + esc(it.name) + (it.qty !== '' ? ' · ' + num(it.qty) + esc(it.unit || '') : '') + '</button>').join('') + '</div>').join('') : '<p class="note">등록된 교구가 없어요</p>') + '</div>';
+    bindItemCards($('#cabDetail'));
+  }
+  centerPlans($('#cabs'));
+  drawCabList();
+}
+function drawCabList() {
+  const d = st.data, by = {};
+  d.items.forEach(it => { (by[it.cab] = by[it.cab] || {})[it.kanName] = (by[it.cab][it.kanName] || []).concat(it); });
+  let html = '';
+  d.spaces.filter(s => s.id === st.room).forEach(s => {
+    const cabs = d.cabs.filter(c => c.space === s.id);
+    html += '<div class="group"><h3>' + esc(s.name) + '</h3>' + cabs.map(c => {
+      const kans = by[c.id] || {}; const n = Object.values(kans).reduce((a, x) => a + x.length, 0);
+      return '<details class="cabbox"><summary><span>' + esc(c.name) + '</span><span class="note">' + n + '개</span></summary>' +
+        (n ? Object.keys(kans).map(k => '<div class="kan"><div class="kn">' + esc(k) + '</div>' +
+          kans[k].map(it => '<button data-item="' + esc(it.id) + '">' + esc(it.name) + (it.qty !== '' ? ' <span class="note">' + num(it.qty) + esc(it.unit || '') + '</span>' : '') + '</button>').join('') + '</div>').join('')
+          : '<div class="kan note">등록된 교구가 없어요</div>') + '</details>';
+    }).join('') + '</div>';
+  });
+  $('#cabList').innerHTML = html.replace('<div class="group"><h3>', '<div class="group"><h3>목록으로 보기 · ');
+  bindItemCards($('#cabList'));
+}
+function itemDetail(id) {
+  const d = st.data, it = d.items.find(x => x.id === id); if (!it) return;
+  const sp = d.spaces.find(s => s.id === it.space) || {};
+  const same = d.items.filter(x => x.kan === it.kan && x.id !== it.id);
+  openModal('<h2>' + esc(it.name) + '</h2><div class="note">' + (it.qty !== '' ? num(it.qty) + ' ' + esc(it.unit || '') + ' · ' : '') + esc(it.cat || '') + (it.state ? ' · ' + esc(it.state) : '') + '</div>' +
+    '<div class="path"><div><small>방</small><strong>' + esc(it.spaceName) + '</strong></div><div><small>사물함</small><strong>' + esc(it.cabName) + '</strong></div><div><small>칸</small><strong>' + esc(it.kanName) + '</strong></div></div>' +
+    (it.cabDesc ? '<p>📍 ' + esc(it.cabDesc) + '</p>' : '') +
+    (it.photo ? '<img class="plan" src="' + esc(it.photo) + '" alt="' + esc(it.name) + ' 사진">' : '') +
+    whereBlock(it.kan, it.cab, it.space) +
+    (same.length ? '<p class="note" style="margin-top:14px">같은 칸에 있는 물건</p><div class="badges">' + same.map(x => '<span class="b">' + esc(x.name) + '</span>').join('') + '</div>' : '') +
+    (st.mode === 'teacher' ? (it.note ? '<div class="alert warn">' + esc(it.note) + '</div>' : '') + '<div class="btns"><button class="btn pri" id="editItem">수정</button></div>' : ''));
+  if (st.mode === 'teacher') $('#editItem').onclick = () => itemForm(it);
+  setTimeout(() => centerPlans($('#modal')), 30);
+}
+
+// ── 공통 폼 ──
+function kanSelect(name, val) {
+  const groups = {};
+  st.data.kans.forEach(k => { const p = k.label.split(' › '); const g = p.slice(0, 2).join(' › '); (groups[g] = groups[g] || []).push(k); });
+  return '<select name="' + name + '"><option value="">— 칸 선택 —</option>' + Object.keys(groups).map(g => '<optgroup label="' + esc(g) + '">' +
+    groups[g].map(k => '<option value="' + esc(k.id) + '"' + (k.id === val ? ' selected' : '') + '>' + esc(k.label.split(' › ').slice(2).join(' › ') || k.id) + ' (' + esc(k.id) + ')</option>').join('') + '</optgroup>').join('') + '</select>';
+}
+function field(f, v) {
+  v = v == null ? '' : v;
+  const cls = f.full ? ' class="full"' : '';
+  if (f.type === 'kan') return '<label' + cls + '>' + f.label + kanSelect(f.k, v) + '</label>';
+  if (f.type === 'select') return '<label' + cls + '>' + f.label + '<select name="' + f.k + '"><option value=""></option>' + f.opts.map(o => '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select></label>';
+  if (f.type === 'check') return '<label class="chk' + (f.full ? ' full' : '') + '"><input type="checkbox" name="' + f.k + '"' + (v === true || v === 'TRUE' ? ' checked' : '') + '>' + f.label + '</label>';
+  if (f.type === 'area') return '<label class="full">' + f.label + '<textarea name="' + f.k + '" rows="2">' + esc(v) + '</textarea></label>';
+  return '<label' + cls + '>' + f.label + '<input name="' + f.k + '" type="' + (f.type || 'text') + '"' + (f.type === 'number' ? ' step="any" inputmode="decimal"' : '') + ' value="' + esc(v) + '"' + (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + '></label>';
+}
+function readForm(root, fields) {
+  const o = {};
+  fields.forEach(f => { const el = root.querySelector('[name="' + f.k + '"]'); if (!el) return; o[f.k] = f.type === 'check' ? el.checked : el.value.trim(); });
+  return o;
+}
+function busy(btn, on) { btn.disabled = on; btn.dataset.t = btn.dataset.t || btn.textContent; btn.textContent = on ? '저장 중…' : btn.dataset.t; }
+
+function itemForm(it, preset) {
+  const o = st.data.opt;
+  const F = [{ k: 'name', label: '교구명', full: true }, { k: 'kw', label: '검색어 (다른 이름, 쉼표로 구분)', full: true, ph: '예: 돋보기, 확대경' },
+    { k: 'cat', label: '분류', type: 'select', opts: o.cat }, { k: 'state', label: '상태', type: 'select', opts: o.state },
+    { k: 'kan', label: '위치(칸)', type: 'kan', full: true }, { k: 'qty', label: '수량', type: 'number' }, { k: 'unit', label: '단위', ph: '개, 대, 세트' },
+    { k: 'photo', label: '사진 링크 (드라이브 공유 링크)', full: true }, { k: 'note', label: '비고', type: 'area' }];
+  const v = preset || (it ? { name: it.name, kw: it.kw, cat: it.cat, state: it.state, kan: it.kan, qty: it.qty, unit: it.unit, photo: it.photoRaw, note: it.note } : { state: '정상', unit: '개' });
+  openModal('<h2>' + (it ? '교구 수정' : '새 교구') + '</h2>' + (it ? '<div class="note">' + esc(it.id) + '</div>' : '') +
+    '<div class="form" id="f">' + F.map(f => field(f, v[f.k])).join('') + '</div><div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
+  $('#save').onclick = () => {
+    const obj = readForm($('#f'), F); if (it) obj.id = it.id;
+    if (!obj.name) return toast('교구명을 입력해 주세요.', true);
+    const items = st.data.items, snap = it ? JSON.parse(JSON.stringify(it)) : null;
+    const local = Object.assign({}, it || {}, obj, placeOf(obj.kan), { photoRaw: obj.photo, photo: driveImg(obj.photo),
+      qty: obj.qty === '' ? '' : Number(obj.qty), id: it ? it.id : 'new-' + Date.now(), _pending: true });
+    let target = it; if (it) Object.assign(it, local); else { target = local; items.push(local); }
+    closeModal(); rerender();
+    save('saveItem', obj, res => {
+      const i = items.indexOf(target); if (i >= 0) items[i] = res.item; else items.push(res.item);
+      rerender(); toast('저장했어요 · ' + res.item.id);
+    }, e => {
+      if (it) { Object.keys(it).forEach(k => delete it[k]); Object.assign(it, snap); } else { const i = items.indexOf(target); if (i >= 0) items.splice(i, 1); }
+      rerender(); toast('저장하지 못했어요: ' + e.message, true); itemForm(it, obj);
+    });
+  };
+}
+
+// ───────────────────────── 시약 ─────────────────────────
+const RF = ['전체', '유해화학물질', '확인 필요', '유효기한', 'MSDS 미게시', '옮기기 권장', '폐기예정'];
+const hasStock = r => r.base !== '' && r.base != null;
+const stockTxt = r => hasStock(r) ? num(r.stock) + ' ' + esc(r.unit) : '재고 미입력';
+function rgFlags(r) {
+  const f = [];
+  if (r.haz === 'O') f.push(['유해화학물질', 'bad']);
+  if (r.haz === '확인 필요') f.push(['유해 여부 확인', 'warn']);
+  if (r.expState === '기한 지남') f.push(['기한 지남', 'bad']); else if (r.expState === '90일 이내') f.push(['기한 임박', 'warn']);
+  if (r.msds !== true && r.msds !== 'TRUE') f.push(['MSDS 미게시', 'warn']);
+  if (r.check === '옮기기 권장') f.push(['옮기기 권장', 'bad']);
+  if (r.waste === true || r.waste === 'TRUE') f.push(['폐기예정', '']);
+  if (/산화제/.test(r.prop)) f.push(['산화제', 'warn']);
+  if (/인화성/.test(r.prop)) f.push(['인화성', 'warn']);
+  return f;
+}
+function rgFilter(r) {
+  switch (st.rf) {
+    case '유해화학물질': return r.haz === 'O';
+    case '확인 필요': return r.haz === '확인 필요';
+    case '유효기한': return r.expState === '기한 지남' || r.expState === '90일 이내';
+    case 'MSDS 미게시': return !(r.msds === true || r.msds === 'TRUE');
+    case '옮기기 권장': return r.check === '옮기기 권장';
+    case '폐기예정': return r.waste === true || r.waste === 'TRUE';
+    default: return true;
+  }
+}
+function viewRg() {
+  $('#main').innerHTML = '<div class="bar"><span class="note">시약 ' + st.data.reagents.length + '종</span><button class="btn pri" id="newRg">+ 새 시약</button></div>' +
+    '<div class="search"><input id="rq" type="text" enterkeyhint="search" placeholder="시약 이름, 화학식, CAS번호" value="' + esc(st.rq) + '" autocomplete="off"><button class="x" id="rqx" aria-label="지우기">×</button></div>' +
+    '<div class="chips" id="rf">' + RF.map(c => '<button class="chip' + (st.rf === c ? ' on' : '') + '" data-c="' + c + '">' + c + '</button>').join('') + '</div><div id="rres"></div>';
+  $('#newRg').onclick = () => rgForm(null);
+  const q = $('#rq'); q.oninput = () => { st.rq = q.value; drawRg(); };
+  $('#rqx').onclick = () => { st.rq = ''; q.value = ''; drawRg(); };
+  $('#rf').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { st.rf = b.dataset.c; viewRg(); });
+  drawRg();
+}
+function drawRg() {
+  const list = st.data.reagents.filter(r => rgFilter(r) && matches(st.rq, r.name, r.formula, r.cas, r.conc));
+  $('#rres').innerHTML = list.length ? '<div class="list">' + list.map(r =>
+    '<button class="card' + (r._pending ? ' pending' : '') + '" data-rg="' + esc(r.id) + '"><div class="t"><span class="n">' + hl(r.name, st.rq) + pend(r) + (r.conc ? ' <span class="note">' + esc(r.conc) + '</span>' : '') + '</span>' +
+    '<span class="q">' + stockTxt(r) + '</span></div>' +
+    '<div class="p">' + esc(r.loc || '위치 미입력') + '</div>' +
+    '<div class="badges">' + rgFlags(r).map(([t, c]) => '<span class="b ' + c + '">' + t + '</span>').join('') + '</div></button>').join('') + '</div>'
+    : '<div class="empty">조건에 맞는 시약이 없어요.</div>';
+  $('#rres').querySelectorAll('[data-rg]').forEach(b => b.onclick = () => rgDetail(b.dataset.rg));
+}
+function rgDetail(id) {
+  const r = st.data.reagents.find(x => x.id === id); if (!r) return;
+  const logs = st.data.logs.filter(l => l.rid === id).slice(-8).reverse();
+  const yes = v => v === true || v === 'TRUE';
+  openModal('<h2>' + esc(r.name) + '</h2><div class="note">' + esc(r.id) + (r.conc ? ' · ' + esc(r.conc) : '') + (r.formula ? ' · ' + esc(r.formula) : '') + (r.cas ? ' · CAS ' + esc(r.cas) : '') + '</div>' +
+    '<div class="badges">' + rgFlags(r).map(([t, c]) => '<span class="b ' + c + '">' + t + '</span>').join('') + '</div>' +
+    '<dl class="kv">' +
+      '<dt>현재 위치</dt><dd>' + esc(r.loc || '—') + '</dd>' +
+      '<dt>현재 보유량</dt><dd><b>' + stockTxt(r) + '</b>' + (r.spec ? ' <span class="note">(' + esc(r.spec) + ' × ' + esc(r.cnt) + ')</span>' : '') + '</dd>' +
+      '<dt>유해화학물질</dt><dd>' + esc(r.haz || '—') + ' <span class="note">기준: ' + esc(r.tox) + '</span></dd>' +
+      '<dt>성질</dt><dd>' + esc(r.prop || '—') + '</dd>' +
+      '<dt>분류</dt><dd>' + esc(r.recClass) + '</dd>' +
+      '<dt>추천 보관</dt><dd>' + esc(r.recZone || '—') + (r.recKan ? ' → ' + esc(r.recKan) : '') + ' <span class="b ' + (r.check === '적합' ? 'ok' : r.check === '옮기기 권장' ? 'bad' : '') + '">' + esc(r.check) + '</span></dd>' +
+      (r.sep ? '<dt>분리 보관</dt><dd>' + esc(r.sep) + '</dd>' : '') +
+      '<dt>유효기한</dt><dd>' + esc(r.exp || '—') + (r.expState ? ' <span class="b ' + (r.expState === '기한 지남' ? 'bad' : 'warn') + '">' + esc(r.expState) + '</span>' : '') + '</dd>' +
+      '<dt>MSDS</dt><dd>' + (yes(r.msds) ? '게시함 ' + esc(r.msdsDate) : '미게시') + (r.msdsVendor ? ' · ' + esc(r.msdsVendor) : '') + (r.msdsLink ? ' · <a href="' + esc(r.msdsLink) + '" target="_blank">MSDS 열기</a>' : '') + '</dd>' +
+      '<dt>최근 출납</dt><dd>' + esc(r.lastLog || '—') + '</dd>' +
+    '</dl>' + (r.note ? '<div class="alert warn">' + esc(r.note) + '</div>' : '') +
+    (r.kan ? (() => { const k = (st.data.kans || []).find(x => x.id === r.kan) || {}; const c = st.data.cabs.find(x => x.id === k.cab) || {}; return whereBlock(r.kan, k.cab, c.space); })() : '') +
+    (logs.length ? '<p class="note" style="margin-bottom:4px">최근 출납 기록</p><div class="scroll"><table class="mini"><tr><th>날짜</th><th>구분</th><th>수량</th><th>잔량</th><th>담당</th><th>용도</th></tr>' +
+      logs.map(l => '<tr><td>' + esc(l.date) + '</td><td>' + esc(l.type) + '</td><td>' + num(l.qty) + '</td><td>' + num(l.after) + '</td><td>' + esc(l.who) + '</td><td>' + esc(l.use) + '</td></tr>').join('') + '</table></div>' : '') +
+    '<div class="btns"><button class="btn" id="toLog">출납 기록하기</button><button class="btn pri" id="editRg">정보 수정</button></div>');
+  $('#editRg').onclick = () => rgForm(r);
+  setTimeout(() => centerPlans($('#modal')), 30);
+  $('#toLog').onclick = () => { st.logRid = r.id; st.tab = 'log'; closeModal(); render(); };
+}
+function rgForm(r, preset) {
+  const o = st.data.opt;
+  const F = [{ k: 'name', label: '시약명', full: true, ph: '예: 묽은 염산(10%)' }, { k: 'conc', label: '농도', ph: '예: 10%, 0.1 M' }, { k: 'formula', label: '화학식' },
+    { k: 'cas', label: 'CAS번호' }, { k: 'haz', label: '유해화학물질 여부', type: 'select', opts: o.haz },
+    { k: 'kan', label: '보관 위치(칸)', type: 'kan', full: true }, { k: 'spec', label: '규격 (한 병 용량)', ph: '예: 500 mL' }, { k: 'cnt', label: '개수(병)', type: 'number' },
+    { k: 'unit', label: '관리단위', type: 'select', opts: o.unit }, { k: 'base', label: '기초재고량 (관리단위)', type: 'number' },
+    { k: 'inDate', label: '입고일', type: 'date' }, { k: 'openDate', label: '개봉일', type: 'date' }, { k: 'exp', label: '유효기한', type: 'date' },
+    { k: 'msdsDate', label: 'MSDS 게시일', type: 'date' }, { k: 'msds', label: 'MSDS 게시함', type: 'check' }, { k: 'waste', label: '폐기 예정', type: 'check' },
+    { k: 'msdsLink', label: 'MSDS 링크 (판매업체에서 받은 파일)', full: true }, { k: 'msdsVendor', label: 'MSDS 제공업체', full: true }, { k: 'note', label: '비고', type: 'area' }];
+  const v = preset || r || { haz: '확인 필요' };
+  openModal('<h2>' + (r ? '시약 정보 수정' : '새 시약 등록') + '</h2>' + (r ? '<div class="note">' + esc(r.id) + '</div>' : '<div class="alert ac">저장하면 유해화학물질 기준농도, 분류, 추천 보관 위치가 자동으로 계산돼요.</div>') +
+    '<div class="form" id="f">' + F.map(f => field(f, v[f.k])).join('') + '</div>' +
+    '<p class="note">유해화학물질 여부는 병 라벨의 실제 농도를 [부록9] 기준농도와 비교해 정해 주세요. MSDS는 판매업체에서 받은 것만 유효해요.</p>' +
+    '<div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
+  $('#save').onclick = () => {
+    const obj = readForm($('#f'), F); if (r) obj.id = r.id;
+    if (!obj.name) return toast('시약명을 입력해 주세요.', true);
+    const list = st.data.reagents, snap = r ? JSON.parse(JSON.stringify(r)) : null;
+    const pl = placeOf(obj.kan);
+    const local = Object.assign({}, r || { recClass: '계산 중…', tox: '계산 중…', check: '', expState: '', lastLog: '' }, obj, {
+      id: r ? r.id : 'new-' + Date.now(), loc: [pl.spaceName, pl.cabName, pl.kanName].filter(Boolean).join(' › '),
+      cnt: obj.cnt === '' ? '' : Number(obj.cnt), base: obj.base === '' ? '' : Number(obj.base), _pending: true });
+    if (r && String(r.base) !== String(local.base)) local.stock = (Number(r.stock) || 0) - (Number(r.base) || 0) + (Number(local.base) || 0);
+    if (!r) local.stock = local.base === '' ? 0 : local.base;
+    let target = r; if (r) Object.assign(r, local); else { target = local; list.push(local); }
+    closeModal(); rerender();
+    save('saveReagent', obj, res => {
+      const i = list.indexOf(target); if (i >= 0) list[i] = res.reagent; else list.push(res.reagent);
+      rerender(); toast('저장했어요 · ' + res.reagent.id);
+    }, e => {
+      if (r) { Object.keys(r).forEach(k => delete r[k]); Object.assign(r, snap); } else { const i = list.indexOf(target); if (i >= 0) list.splice(i, 1); }
+      rerender(); toast('저장하지 못했어요: ' + e.message, true); rgForm(r, obj);
+    });
+  };
+}
+
+// ───────────────────────── 출납 ─────────────────────────
+function viewLog() {
+  const d = st.data;
+  const opts = d.reagents.map(r => '<option value="' + esc(r.id) + '"' + (r.id === st.logRid ? ' selected' : '') + '>' + esc(r.name + (r.spec ? ' ' + r.spec : '') + ' · ' + (r.loc.split(' › ').slice(1).join(' ') || '') + ' (' + r.id + ')') + '</option>').join('');
+  const recent = d.logs.slice(-40).reverse();
+  $('#main').innerHTML = '<div class="panel"><h3>출납 기록 추가</h3>' +
+    '<div class="search" style="margin:4px 0 8px"><input id="lf" type="text" enterkeyhint="search" placeholder="시약 이름으로 목록 좁히기 (예: 염산)" autocomplete="off"></div>' +
+    '<div class="form" id="f">' +
+      '<label class="full">시약<select name="rid" id="rid"><option value="">— 시약 선택 —</option>' + opts + '</select></label>' +
+      '<label>날짜<input type="date" name="date" value="' + today() + '"></label>' +
+      '<label>구분<select name="type"><option>사용</option><option>입고</option><option>폐기</option></select></label>' +
+      '<label><span>수량 <span id="unitL"></span></span><input type="number" name="qty" step="any" inputmode="decimal"></label>' +
+      '<label>담당교사<input name="who" id="who" placeholder="이름"></label>' +
+      '<label class="full">용도<input name="use" placeholder="예: 2학년 3반 산·염기 실험"></label>' +
+    '</div><div id="pre" class="alert ac" style="display:none"></div>' +
+    '<div class="btns"><button class="btn pri" id="addLog">기록 추가</button></div></div>' +
+    '<div class="panel"><h3>최근 기록</h3>' + (recent.length ? '<div class="scroll"><table class="mini"><tr><th>날짜</th><th>시약</th><th>구분</th><th>수량</th><th>잔량</th><th>담당</th><th>용도</th></tr>' +
+      recent.map(l => { const r = d.reagents.find(x => x.id === l.rid) || {}; return '<tr' + (l._pending ? ' class="pending"' : '') + '><td>' + esc(l.date) + '</td><td>' + esc(r.name || l.rid) + pend(l) + '</td><td>' + esc(l.type) + '</td><td>' + num(l.qty) + ' ' + esc(l.unit) + '</td><td>' + num(l.after) + '</td><td>' + esc(l.who) + '</td><td>' + esc(l.use) + '</td></tr>'; }).join('') +
+      '</table></div>' : '<p class="note">아직 기록이 없어요.</p>') +
+    '<p class="note">법정장부(서식3)는 구글 시트의 "출납대장_출력" 시트에서 약품을 골라 인쇄·서명해 5년간 보관해 주세요.</p></div>';
+  try { const w = localStorage.getItem('sci_who'); if (w) $('#who').value = w; } catch (e) {}
+  const sel = $('#rid'), f = $('#f');
+  $('#lf').oninput = e => { const q = e.target.value; Array.from(sel.options).forEach((op, i) => { if (i) op.hidden = !matches(q, op.textContent); }); };
+  const upd = () => {
+    const r = d.reagents.find(x => x.id === sel.value); const pre = $('#pre');
+    $('#unitL').textContent = r && r.unit ? '(' + r.unit + ')' : '';
+    if (!r) { pre.style.display = 'none'; return; }
+    const q = Number(f.querySelector('[name=qty]').value) || 0, type = f.querySelector('[name=type]').value;
+    const after = !hasStock(r) ? '' : Number(r.stock) + (type === '입고' ? q : -q);
+    pre.style.display = 'block';
+    pre.className = 'alert ' + (after !== '' && after < 0 ? 'bad' : 'ac');
+    pre.innerHTML = '현재 보유량 <b>' + stockTxt(r) + '</b>' + (q && after !== '' ? ' → 기록 후 <b>' + num(after) + ' ' + esc(r.unit) + '</b>' : '') +
+      (after !== '' && after < 0 ? '<br>보유량보다 많아요. 시약 정보의 기초재고량을 확인해 주세요.' : '') + (r.haz === 'O' ? '<br>⚠ 유해화학물질이에요.' : '');
+  };
+  sel.onchange = upd; f.querySelector('[name=qty]').oninput = upd; f.querySelector('[name=type]').onchange = upd; upd();
+  $('#addLog').onclick = () => {
+    const obj = readForm(f, [{ k: 'rid' }, { k: 'date' }, { k: 'type' }, { k: 'qty' }, { k: 'who' }, { k: 'use' }]);
+    if (!obj.rid) return toast('시약을 골라 주세요.', true);
+    if (!(Number(obj.qty) > 0)) return toast('수량을 입력해 주세요.', true);
+    try { if (obj.who) localStorage.setItem('sci_who', obj.who); } catch (e) {}
+    const r = d.reagents.find(x => x.id === obj.rid), q = Number(obj.qty), sign = obj.type === '입고' ? 1 : -1;
+    const snap = { stock: r.stock, lastLog: r.lastLog };
+    const before = hasStock(r) ? Number(r.stock) : '';
+    const log = { date: obj.date, label: r.label, rid: r.id, type: obj.type, qty: q, unit: r.unit, before: before,
+      after: before === '' ? '' : before + sign * q, who: obj.who || d.me, use: obj.use, _pending: true };
+    d.logs.push(log);
+    if (before !== '') r.stock = before + sign * q;
+    if (!r.lastLog || obj.date > r.lastLog) r.lastLog = obj.date;
+    st.logRid = obj.rid; rerender();
+    save('addLog', obj, res => {
+      const i = d.logs.indexOf(log); if (i >= 0) d.logs[i] = res.log; else d.logs.push(res.log);
+      const j = d.reagents.indexOf(r); if (j >= 0) d.reagents[j] = res.reagent;
+      rerender(); toast(res.warn || '기록했어요', !!res.warn);
+    }, e => {
+      const i = d.logs.indexOf(log); if (i >= 0) d.logs.splice(i, 1);
+      Object.assign(r, snap); rerender(); toast('기록하지 못했어요: ' + e.message, true);
+    });
+  };
+}
+
+// ───────────────────────── 폐수·폐시약 ─────────────────────────
+function viewWaste() {
+  const d = st.data, o = d.opt;
+  const recent = d.waste.slice(-40).reverse();
+  $('#main').innerHTML = '<div class="stats">' + o.wasteKind.map(k => { const b = d.waste.filter(w => w.kind === k).slice(-1)[0]; return '<div class="stat" style="cursor:default"><div class="l">' + k + ' 잔량</div><div class="v">' + (b ? num(b.remain) + ' <span class="note">' + esc(b.unit) + '</span>' : '0') + '</div></div>'; }).join('') + '</div>' +
+    '<div class="panel"><h3>폐수·폐시약 기록 추가</h3><div class="form" id="f">' +
+      '<label>날짜<input type="date" name="date" value="' + today() + '"></label>' +
+      '<label>성상<select name="kind">' + o.wasteKind.map(k => '<option>' + k + '</option>').join('') + '</select></label>' +
+      '<label>단위<select name="unit">' + o.wasteUnit.map(k => '<option>' + k + '</option>').join('') + '</select></label>' +
+      '<label>발생량<input type="number" name="gen" step="any" inputmode="decimal"></label>' +
+      '<label>처리량 (수거·위탁)<input type="number" name="done" step="any" inputmode="decimal"></label>' +
+      '<label>수거자 확인<input name="collector" placeholder="예: ○○지원청 수거"></label>' +
+      '<label class="full">비고<input name="note"></label>' +
+    '</div><p class="note">같은 성상은 같은 단위로 기록해 주세요(폐수 L, 폐시약 g). 무기계와 유기계 폐수는 섞지 않아요.</p>' +
+    '<div class="btns"><button class="btn pri" id="addW">기록 추가</button></div></div>' +
+    '<div class="panel"><h3>최근 기록</h3>' + (recent.length ? '<div class="scroll"><table class="mini"><tr><th>날짜</th><th>성상</th><th>이월</th><th>발생</th><th>처리</th><th>잔량</th><th>수거자</th></tr>' +
+      recent.map(w => '<tr' + (w._pending ? ' class="pending"' : '') + '><td>' + esc(w.date) + '</td><td>' + esc(w.kind) + pend(w) + '</td><td>' + num(w.carry) + '</td><td>' + num(w.gen) + '</td><td>' + num(w.done) + '</td><td>' + num(w.remain) + ' ' + esc(w.unit) + '</td><td>' + esc(w.collector) + '</td></tr>').join('') +
+      '</table></div>' : '<p class="note">아직 기록이 없어요.</p>') +
+    '<p class="note">법정장부(서식4)는 구글 시트의 "폐수대장_출력" 시트에서 성상을 골라 인쇄해 3년간 보관해 주세요.</p></div>';
+  $('#f [name=kind]').onchange = e => { $('#f [name=unit]').value = e.target.value === '폐시약' ? 'g' : 'L'; };
+  $('#addW').onclick = () => {
+    const obj = readForm($('#f'), ['date', 'kind', 'unit', 'gen', 'done', 'collector', 'note'].map(k => ({ k })));
+    if (obj.gen === '' && obj.done === '') return toast('발생량이나 처리량을 입력해 주세요.', true);
+    const prev = d.waste.filter(w => w.kind === obj.kind).slice(-1)[0];
+    const carry = prev ? Number(prev.remain) || 0 : 0;
+    const rec = Object.assign({}, obj, { gen: obj.gen === '' ? '' : Number(obj.gen), done: obj.done === '' ? '' : Number(obj.done), carry: carry, _pending: true });
+    rec.remain = carry + (Number(rec.gen) || 0) - (Number(rec.done) || 0);
+    d.waste.push(rec); rerender();
+    save('addWaste', obj, res => {
+      const i = d.waste.indexOf(rec); if (i >= 0) d.waste[i] = res.waste; else d.waste.push(res.waste);
+      rerender(); toast('기록했어요');
+    }, e => {
+      const i = d.waste.indexOf(rec); if (i >= 0) d.waste.splice(i, 1);
+      rerender(); toast('기록하지 못했어요: ' + e.message, true);
+    });
+  };
+}
+
+// ───────────────────────── 점검 ─────────────────────────
+function viewCheck() {
+  const d = st.data, R = d.reagents, yes = v => v === true || v === 'TRUE';
+  const groups = [
+    ['유효기한 지남', R.filter(r => r.expState === '기한 지남'), 'bad', '유효기한'],
+    ['유효기한 90일 이내', R.filter(r => r.expState === '90일 이내'), 'warn', '유효기한'],
+    ['유해화학물질(O)', R.filter(r => r.haz === 'O'), 'bad', '유해화학물질'],
+    ['유해 여부 확인 필요', R.filter(r => r.haz === '확인 필요'), 'warn', '확인 필요'],
+    ['MSDS 미게시', R.filter(r => !yes(r.msds)), 'warn', 'MSDS 미게시'],
+    ['보관 위치 옮기기 권장', R.filter(r => r.check === '옮기기 권장'), 'bad', '옮기기 권장'],
+    ['추천 칸 미설정', R.filter(r => r.check === '추천 칸 미설정'), '', null],
+    ['폐기예정 시약', R.filter(r => yes(r.waste)), '', '폐기예정'],
+    ['확인이 필요한 교구', d.items.filter(i => /확인/.test(i.note || '')), 'warn', null]
+  ];
+  const haz = R.some(r => r.haz === 'O');
+  $('#main').innerHTML = '<div class="alert ' + (haz ? 'bad' : 'ac') + '">유해화학물질 보유 여부: <b>' + (haz ? '○ (보유)' : '× (미보유)') + '</b>' +
+    (haz ? ' — 별도 보관·이중 잠금·취급주의 표시, 취급시설 자체점검 주 1회(조례 제6조②), 서식2 보고 시 "○"로 표시' : '') + '</div>' +
+    '<div class="stats">' + groups.map((g, i) => '<button class="stat" data-g="' + i + '"><div class="v" style="color:' + (g[1].length && g[2] === 'bad' ? 'var(--bad)' : g[1].length && g[2] === 'warn' ? 'var(--warn)' : 'inherit') + '">' + g[1].length + '</div><div class="l">' + g[0] + '</div></button>').join('') + '</div>' +
+    '<div id="glist"></div>' +
+    '<div class="panel"><h3>정기 점검 일정 (2026 과학실 안전관리 계획)</h3><ul class="note" style="margin:0;padding-left:18px">' +
+      '<li>매월 4일: 과학실험실 안전관리 자체 점검표(서식1), 폐수·폐기물 자체 점검표(서식5)</li>' +
+      '<li>출납대장(서식3) 5년, 폐수·폐시약 관리대장(서식4) 3년 보존</li>' +
+      '<li>상·하반기 안전점검 운영 실적(서식2) 교육지원청 제출</li>' +
+      (haz ? '<li>유해화학물질 취급시설 자체점검 주 1회 이상</li>' : '') +
+    '</ul><p class="note"><a href="' + esc(d.sheetUrl) + '" target="_blank">구글 시트 열기</a> — 출납대장_출력, 폐수대장_출력, 시약장_목록표 시트에서 인쇄할 수 있어요.</p></div>';
+  document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
+    const g = groups[Number(b.dataset.g)];
+    $('#glist').innerHTML = '<div class="panel"><h3>' + g[0] + ' (' + g[1].length + ')</h3>' + (g[1].length ? '<div class="list">' + g[1].map(x => x.formula !== undefined
+      ? '<button class="card" data-rg="' + esc(x.id) + '"><div class="t"><span class="n">' + esc(x.name) + '</span><span class="q">' + esc(x.exp || '') + '</span></div><div class="p">' + esc(x.loc) + '</div></button>'
+      : '<button class="card" data-item="' + esc(x.id) + '"><div class="t"><span class="n">' + esc(x.name) + '</span></div><div class="p">' + esc(x.note) + '</div></button>').join('') + '</div>' : '<p class="note">해당 없음</p>') + '</div>';
+    $('#glist').querySelectorAll('[data-rg]').forEach(c => c.onclick = () => rgDetail(c.dataset.rg));
+    bindItemCards($('#glist'));
+    $('#glist').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+start();
+})();
+</script>
+</body>
+</html>
