@@ -151,7 +151,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-D · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-E · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -378,14 +378,18 @@ function planAll(hiCab, clickable, hiKan) {
       '<rect' + (hi ? ' class="hi"' : '') + ' x="' + X + '" y="' + Y + '" width="' + ww + '" height="' + hh + '" rx="8" fill="' + (hi ? '#FF5C9E' : col) + '" stroke="' + (hi ? '#C81E5B' : '#6E6488') + '" stroke-width="' + (hi ? 3 : 1.3) + '"/>';
     if (c.id.indexOf('ETC') >= 0) {
       // 원본: 위쪽 7~12 / 아래쪽 1~6  →  회전 후: 오른쪽 7~12 / 왼쪽 1~6 (위에서 아래로)
-      const kans = (d.kans || []).filter(k => k.cab === c.id), num = k => Number(String(k.id).split('-').pop()) || 0;
-      const right = kans.filter(k => num(k) > 6).sort((a, b) => num(a) - num(b)), left = kans.filter(k => num(k) <= 6).sort((a, b) => num(a) - num(b));
-      const cw = ww * 0.3, ch = (hh - 12) / 6;
-      [[left, X + 5], [right, X + ww - cw - 5]].forEach(([colKans, xx]) => colKans.forEach((k, i) => {
-        const on = k.id === hiKan, yy = Y + 6 + i * ch;
-        g += '<rect' + (on ? ' class="hi"' : '') + ' x="' + xx + '" y="' + (yy + 2) + '" width="' + cw + '" height="' + (ch - 4) + '" rx="5" fill="' + (on ? '#FF5C9E' : '#fff') + '" stroke="#6E6488" stroke-width="1.1"/>' +
-          textBlock(xx + cw / 2, yy + ch / 2, [String(num(k))], 18, on ? '#fff' : '#3A3150');
-      }));
+      // 양옆 사물함(1·3·5·8·10·12)은 배치도처럼 2칸 크기로 (왼쪽·오른쪽은 사물함 칸 그림에서 보여 줌)
+      const L = etcLockers(c.id), cw = ww * 0.3;
+      [[L.filter(x => x.n <= 6), X + 5], [L.filter(x => x.n > 6), X + ww - cw - 5]].forEach(([col, xx]) => {
+        const units = col.reduce((a, x) => a + (x.dbl ? 2 : 1), 0) || 1, uh = (hh - 12) / units;
+        let yy = Y + 6;
+        col.forEach(x => {
+          const h = uh * (x.dbl ? 2 : 1), on = x.kans.some(k => k.id === hiKan);
+          g += '<rect' + (on ? ' class="hi"' : '') + ' x="' + xx + '" y="' + (yy + 2) + '" width="' + cw + '" height="' + (h - 4) + '" rx="5" fill="' + (on ? '#FF5C9E' : '#fff') + '" stroke="#6E6488" stroke-width="1.1"/>';
+          g += textBlock(xx + cw / 2, yy + h / 2, [String(x.n)], 18, on ? '#fff' : '#3A3150');
+          yy += h;
+        });
+      });
       g += textBlock(X + ww / 2, Y + hh / 2, ['기타', '사물함'], 16, hi ? '#fff' : '#3A3150');
     } else {
       const f = fitLines(c.name, ww, hh);
@@ -402,10 +406,45 @@ function planAll(hiCab, clickable, hiKan) {
   return '<svg viewBox="0 0 ' + Wpx + ' ' + Hpx + '" role="img" aria-label="과학실, 프로젝트실, 준비실 배치도">' + g + bubble + '</svg>';
 }
 function planSVG(spaceId, hiCab, clickable, hiKan) { return planAll(hiCab, clickable, hiKan); }
+// 기타 사물함: 번호별로 묶기 → [{ n, dbl, kans:[칸], L, R }]  (칸ID 끝이 n, nL, nR)
+const ETC_DOUBLE = [1, 3, 5, 8, 10, 12];
+function etcLockers(cabId) {
+  const by = {};
+  (st.data.kans || []).filter(k => k.cab === cabId).forEach(k => {
+    const m = /-(\d+)([LR]?)$/.exec(String(k.id)); if (!m) return;
+    const n = Number(m[1]), o = by[n] = by[n] || { n: n, kans: [] };
+    o.kans.push(k); if (m[2]) o[m[2]] = k; else o.one = k;
+  });
+  return Object.keys(by).map(Number).sort((a, b) => a - b).map(n => Object.assign(by[n], { dbl: !!(by[n].L || by[n].R) || ETC_DOUBLE.indexOf(n) >= 0 }));
+}
+// 기타 사물함 칸 그림: 위 7~12, 아래 1~6. 양옆 사물함은 왼쪽 | 오른쪽 두 칸
+function etcFront(cab, hiKan) {
+  const L = etcLockers(cab.id), cw = 70, ch = 40, top = 30;
+  const rows = [L.filter(x => x.n > 6), L.filter(x => x.n <= 6)];
+  const units = Math.max(...rows.map(r => r.reduce((a, x) => a + (x.dbl ? 2 : 1), 0)), 1);
+  const W = units * cw + 16, H = top + rows.length * ch + 12;
+  let g = '<text x="' + (W / 2) + '" y="18" text-anchor="middle" font-family="IBM Plex Sans KR, sans-serif" font-weight="600" font-size="16" fill="#3A3150">' + esc(cab.name || '') + '</text>' +
+    '<rect x="6" y="' + (top - 4) + '" width="' + (W - 12) + '" height="' + (rows.length * ch + 8) + '" rx="10" fill="' + esc((cab.box && cab.box[4]) || '#EDEBF2') + '" stroke="#6E6488" stroke-width="1.5"/>';
+  const cell = (k, x, y, w, label, sub) => {
+    const hi = k && k.id === hiKan;
+    return '<rect' + (hi ? ' class="hi"' : '') + ' x="' + (x + 2) + '" y="' + (y + 2) + '" width="' + (w - 4) + '" height="' + (ch - 4) + '" rx="4" fill="' + (hi ? '#FF5C9E' : '#fff') + '" stroke="#3A3150" stroke-width="' + (hi ? 2.5 : 1.2) + '"/>' +
+      '<text x="' + (x + w / 2) + '" y="' + (y + ch / 2 - (sub ? 6 : 0)) + '" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Sans KR, sans-serif" font-weight="600" font-size="14" fill="' + (hi ? '#fff' : '#3A3150') + '">' + esc(label) + '</text>' +
+      (sub ? '<text x="' + (x + w / 2) + '" y="' + (y + ch / 2 + 9) + '" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Sans KR, sans-serif" font-size="11" fill="' + (hi ? '#fff' : '#6E6488') + '">' + esc(sub) + '</text>' : '');
+  };
+  rows.forEach((row, ri) => {
+    const y = top + ri * ch; let x = 8;
+    row.forEach(o => {
+      if (o.L || o.R) { g += cell(o.L, x, y, cw, String(o.n), '왼쪽') + cell(o.R, x + cw, y, cw, String(o.n), '오른쪽'); x += cw * 2; }
+      else { const w = cw * (o.dbl ? 2 : 1); g += cell(o.one || o.kans[0], x, y, w, '기타' + o.n, ''); x += w; }
+    });
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" role="img" aria-label="' + esc(cab.name || '') + ' 칸 그림">' + g + '</svg>';
+}
 function cabSVG(cabId, hiKan) {
   const d = st.data, cab = d.cabs.find(c => c.id === cabId) || {};
   const kans = (d.kans || []).filter(k => k.cab === cabId).map(k => Object.assign({ code: k.id.slice(cabId.length + 1) }, k));
   if (!kans.length) return '';
+  if (/ETC/.test(cabId)) return etcFront(cab, hiKan);
   let grid = [];   // rows of cells
   const LR = kans.every(k => /^[UD][LR]\d+$/.test(k.code)), UD = kans.every(k => /^[UD]\d+$/.test(k.code));
   if (LR) {
