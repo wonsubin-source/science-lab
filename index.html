@@ -151,7 +151,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-I · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-K · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -288,10 +288,16 @@ function start() {
   });
 }
 
+const SCREEN_VER = '10.08-K';
 const FLASK = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M13 4h8M14 4v9L6 27a3 3 0 0 0 2.6 4.5h16.8A3 3 0 0 0 28 27l-8-14V4" fill="#E3DAFF" stroke="#3A3150" stroke-width="2.4" stroke-linejoin="round"/><path d="M9.3 22h15.4l2.6 5a2 2 0 0 1-1.8 3H8.5a2 2 0 0 1-1.8-3z" fill="#FF5C9E"/><circle cx="14" cy="26" r="1.6" fill="#fff"/><circle cx="19.5" cy="24.5" r="1.1" fill="#fff"/></svg>';
 function render() {
   const d = st.data, T = st.mode === 'teacher';
   const sv = document.getElementById('srvver'); if (sv) sv.textContent = ' · 서버 ' + (d.code || '예전 버전(Code.gs를 바꿔 주세요)');
+  let vw = document.getElementById('verwarn');
+  if (T && d.code !== SCREEN_VER) {
+    if (!vw) { vw = document.createElement('div'); vw.id = 'verwarn'; vw.className = 'wrap'; document.getElementById('main').before(vw); }
+    vw.innerHTML = '<div class="alert bad" style="margin:0 0 12px">화면 파일과 서버 파일 버전이 달라요 (화면 ' + SCREEN_VER + ' · 서버 ' + esc(d.code || '예전') + '). Apps Script에서 <b>Code.gs와 Index.html을 둘 다</b> 최신으로 바꾸고, <b>배포 관리 → 새 버전</b>을 학생용·교사용 모두 해 주세요.</div>';
+  } else if (vw) vw.remove();
   $('#top').innerHTML = '<div><h1>' + FLASK + '과학실 교구 검색</h1><div class="sub">' + esc([d.school, T ? '교사용' : ''].filter(Boolean).join(' · ')) + '</div></div>' +
     (T ? '<div class="who">' + esc(d.me) + '<br><a href="' + esc(d.sheetUrl) + '" target="_blank">구글 시트 열기</a></div>'
        : ((HOSTED && window.TEACHER_URL) || d.teacherUrl ? '<div class="who"><a class="tbtn" href="' + esc((HOSTED && window.TEACHER_URL) || d.teacherUrl) + '">교사용</a></div>' : ''));
@@ -370,30 +376,20 @@ function planAll(hiCab, clickable, hiKan) {
   });
   // 사물함
   let bubble = '';
+  const etcBox = [];
   order.forEach(s => d.cabs.filter(c => c.space === s.id && c.box).forEach(c => {
     const col = c.box[4] || famColor(c.name), hi = c.id === hiCab;
     const [X0, Y0, W0, H0] = R(c.box[0] + ox, c.box[1] + top[s.id], c.box[2], c.box[3]);
     const X = X0 + 2, Y = Y0 + 2, ww = W0 - 4, hh = H0 - 4;
     g += '<g class="' + (clickable ? 'plan-cab' : '') + '" data-pcab="' + esc(c.id) + '"' + (clickable ? ' role="button" tabindex="0" aria-label="' + esc(c.name) + '"' : '') + '>' +
       '<rect' + (hi ? ' class="hi"' : '') + ' x="' + X + '" y="' + Y + '" width="' + ww + '" height="' + hh + '" rx="8" fill="' + (hi ? '#FF5C9E' : col) + '" stroke="' + (hi ? '#C81E5B' : '#6E6488') + '" stroke-width="' + (hi ? 3 : 1.3) + '"/>';
-    if (/기타\s*사물함/.test(c.name)) {   // 예전 구조(기타 사물함 하나) — 시트 정리 전에도 그림이 깨지지 않게
-      // 원본: 위쪽 7~12 / 아래쪽 1~6  →  회전 후: 오른쪽 7~12 / 왼쪽 1~6 (위에서 아래로)
-      // 양옆 사물함(1·3·5·8·10·12)은 배치도처럼 2칸 크기로 (왼쪽·오른쪽은 사물함 칸 그림에서 보여 줌)
-      const L = etcLockers(c.id), cw = ww * 0.3;
-      [[L.filter(x => x.n <= 6), X + 5], [L.filter(x => x.n > 6), X + ww - cw - 5]].forEach(([col, xx]) => {
-        const units = col.reduce((a, x) => a + (x.dbl ? 2 : 1), 0) || 1, uh = (hh - 12) / units;
-        let yy = Y + 6;
-        col.forEach(x => {
-          const h = uh * (x.dbl ? 2 : 1), on = x.kans.some(k => k.id === hiKan);
-          g += '<rect' + (on ? ' class="hi"' : '') + ' x="' + xx + '" y="' + (yy + 2) + '" width="' + cw + '" height="' + (h - 4) + '" rx="5" fill="' + (on ? '#FF5C9E' : '#fff') + '" stroke="' + (on ? '#C81E5B' : '#3A3150') + '" stroke-width="1.5"/>';
-          g += textBlock(xx + cw / 2, yy + h / 2, [String(x.n)], 18, on ? '#fff' : '#3A3150');
-          yy += h;
-        });
-      });
-      g += textBlock(X + ww / 2, Y + hh / 2, ['기타', '사물함'], 16, hi ? '#fff' : '#3A3150');
+    const etcN = /^기타\s*(\d+)$/.exec(c.name);
+    if (etcN) {   // 기타 1~12: 상자가 작아서 번호만 크게, 묶음 이름은 위에 한 번만
+      etcBox.push([X, Y, ww, hh]);
+      g += textBlock(X + ww / 2, Y + hh / 2, [etcN[1]], Math.floor(Math.min(17, hh * 0.6, ww * 0.42)), hi ? '#fff' : '#3A3150', 700);
     } else {
-      const f = fitLines(c.name, ww, hh), fs = /^기타 \d+$/.test(c.name) ? Math.min(f.fs, fitLines('기타 00', ww, hh).fs) : f.fs;   // 기타 1~12 글자 크기 맞춤
-      g += textBlock(X + ww / 2, Y + hh / 2, f.lines, fs, hi ? '#fff' : '#3A3150');
+      const f = fitLines(c.name, ww, hh);
+      g += textBlock(X + ww / 2, Y + hh / 2, f.lines, f.fs, hi ? '#fff' : '#3A3150');
     }
     g += '</g>';
     if (hi) {
@@ -403,65 +399,17 @@ function planAll(hiCab, clickable, hiKan) {
         textBlock(bx, above ? by - 15 : by + 15, ['여기!'], 16, '#fff', 700) + '</g>';
     }
   }));
+  if (etcBox.length) {   // '기타 사물함' 묶음 이름 (상자 바로 위)
+    const x0 = Math.min(...etcBox.map(b => b[0])), x1 = Math.max(...etcBox.map(b => b[0] + b[2])), y0 = Math.min(...etcBox.map(b => b[1]));
+    g += textBlock((x0 + x1) / 2, y0 - 11, ['기타 사물함'], 13, '#6E6488', 700);
+  }
   return '<svg viewBox="0 0 ' + Wpx + ' ' + Hpx + '" role="img" aria-label="과학실, 프로젝트실, 준비실 배치도">' + g + bubble + '</svg>';
 }
 function planSVG(spaceId, hiCab, clickable, hiKan) { return planAll(hiCab, clickable, hiKan); }
-// 기타 사물함: 번호별로 묶기 → [{ n, dbl, kans:[칸], sides:[{ s:''|'L'|'R', shelves:[칸…] }] }]
-// 칸ID 끝: n-1(기타n 1칸), nL-2(기타n 왼쪽 2칸) … 예전 형식 n, nL 도 그림이 깨지지 않게 처리
-const ETC_DOUBLE = [1, 3, 5, 8, 10, 12];
-function etcLockers(cabId) {
-  const by = {};
-  (st.data.kans || []).filter(k => k.cab === cabId).forEach(k => {
-    const m = /-(\d+)([LR]?)(?:-(\d+))?$/.exec(String(k.id)); if (!m) return;
-    const n = Number(m[1]), o = by[n] = by[n] || { n: n, kans: [], side: {} };
-    o.kans.push(k); (o.side[m[2]] = o.side[m[2]] || []).push(Object.assign({ shelf: Number(m[3] || 0) }, k));
-  });
-  return Object.keys(by).map(Number).sort((a, b) => a - b).map(n => {
-    const o = by[n], keys = Object.keys(o.side).sort((a, b) => (a === 'R') - (b === 'R'));
-    o.sides = keys.map(k => ({ s: k, shelves: o.side[k].sort((a, b) => a.shelf - b.shelf) }));
-    o.dbl = !!(o.side.L || o.side.R) || ETC_DOUBLE.indexOf(n) >= 0;
-    return o;
-  });
-}
-// 기타 사물함 칸 그림: 위 줄 7~12, 아래 줄 1~6. 사물함마다 위에서부터 1·2·3칸, 양옆 사물함은 왼쪽 | 오른쪽
-function etcFront(cab, hiKan) {
-  const L = etcLockers(cab.id), cw = 64, sh = 28, head = 34, gap = 14, top = 30, LG = 7;
-  const groups = [L.filter(x => x.n > 6), L.filter(x => x.n <= 6)];
-  const rowW = r => r.reduce((a, x) => a + cw * Math.max(x.sides.length, x.dbl ? 2 : 1), 0) + Math.max(r.length - 1, 0) * LG;
-  const shelves = Math.max(1, ...L.map(x => Math.max(...x.sides.map(sd => sd.shelves.length)))), gh = head + shelves * sh + 4;
-  const W = Math.max(...groups.map(rowW), cw) + 20, H = top + groups.length * gh + (groups.length - 1) * gap + 8;
-  const F = 'font-family="IBM Plex Sans KR, sans-serif"';
-  let g = '<text x="' + (W / 2) + '" y="18" text-anchor="middle" ' + F + ' font-weight="600" font-size="16" fill="#3A3150">' + esc(cab.name || '') + '</text>';
-  groups.forEach((row, gi) => {
-    const y0 = top + gi * (gh + gap); let x = 10;
-    g += '<rect x="6" y="' + (y0 - 2) + '" width="' + (W - 12) + '" height="' + (gh + 4) + '" rx="8" fill="' + esc((cab.box && cab.box[4]) || '#EDEBF2') + '" stroke="#6E6488" stroke-width="1.3"/>';
-    row.forEach(o => {
-      const span = Math.max(o.sides.length, o.dbl ? 2 : 1), sw = cw * span / o.sides.length, two = o.sides.some(sd => sd.s);
-      const onAny = o.kans.some(k => k.id === hiKan);
-      // 사물함 하나하나를 진한 테두리 상자로 구분
-      g += '<rect x="' + x + '" y="' + (y0 + 1) + '" width="' + (cw * span) + '" height="' + (gh - 2) + '" rx="6" fill="#FBFAFE" stroke="' + (onAny ? '#C81E5B' : '#3A3150') + '" stroke-width="' + (onAny ? 2.4 : 1.8) + '"/>';
-      g += '<text x="' + (x + cw * span / 2) + '" y="' + (y0 + (two ? 10 : head / 2)) + '" text-anchor="middle" dominant-baseline="central" ' + F + ' font-weight="700" font-size="13" fill="' + (onAny ? '#C81E5B' : '#3A3150') + '">기타' + o.n + '</text>';
-      o.sides.forEach((sd, si) => {
-        const sx = x + si * sw, on = sd.shelves.some(k => k.id === hiKan);
-        if (sd.s) g += '<text x="' + (sx + sw / 2) + '" y="' + (y0 + 25) + '" text-anchor="middle" dominant-baseline="central" ' + F + ' font-weight="' + (on ? 700 : 500) + '" font-size="11" fill="' + (on ? '#C81E5B' : '#6E6488') + '">' + (sd.s === 'L' ? '왼쪽' : '오른쪽') + '</text>';
-        const one = sd.shelves.length === 1 && !sd.shelves[0].shelf;
-        sd.shelves.forEach((k, ki) => {
-          const hi = k.id === hiKan, yy = y0 + head + (one ? 0 : ki * sh), hh = one ? shelves * sh : sh;
-          g += '<rect' + (hi ? ' class="hi"' : '') + ' x="' + (sx + 4) + '" y="' + (yy + 1) + '" width="' + (sw - 8) + '" height="' + (hh - 3) + '" rx="4" fill="' + (hi ? '#FF5C9E' : '#fff') + '" stroke="#3A3150" stroke-width="' + (hi ? 2.5 : 1.1) + '"/>' +
-            '<text x="' + (sx + sw / 2) + '" y="' + (yy + hh / 2) + '" text-anchor="middle" dominant-baseline="central" ' + F + ' font-weight="600" font-size="13" fill="' + (hi ? '#fff' : '#3A3150') + '">' + esc(one ? '—' : (hi ? '▶ ' : '') + k.shelf + '칸') + '</text>';
-        });
-        if (si) g += '<line x1="' + sx + '" x2="' + sx + '" y1="' + (y0 + 18) + '" y2="' + (y0 + gh - 2) + '" stroke="#6E6488" stroke-width="1" stroke-dasharray="3 3"/>';
-      });
-      x += cw * span + LG;
-    });
-  });
-  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" role="img" aria-label="' + esc(cab.name || '') + ' 칸 그림">' + g + '</svg>';
-}
 function cabSVG(cabId, hiKan) {
   const d = st.data, cab = d.cabs.find(c => c.id === cabId) || {};
   const kans = (d.kans || []).filter(k => k.cab === cabId).map(k => Object.assign({ code: k.id.slice(cabId.length + 1) }, k));
   if (!kans.length) return '';
-  if (/기타\s*사물함/.test(cab.name || '')) return etcFront(cab, hiKan);
   let grid = [];   // rows of cells
   const LR = kans.every(k => /^[UD][LR]\d+$/.test(k.code)), UD = kans.every(k => /^[UD]\d+$/.test(k.code));
   const SIDE = kans.every(k => /^[LR]\d+$/.test(k.code));   // 양옆 사물함: 왼쪽 1~3칸 | 오른쪽 1~3칸
@@ -492,7 +440,7 @@ function cabSVG(cabId, hiKan) {
       if (!k) return;
       const x = 8 + ci * cw, hi = k.id === hiKan;
       g += '<rect' + (hi ? ' class="hi"' : '') + ' x="' + (x + 2) + '" y="' + (y + 2) + '" width="' + (cw - 4) + '" height="' + (ch - 4) + '" rx="4" fill="' + (hi ? '#FF5C9E' : '#ffffff') + '" stroke="#3A3150" stroke-width="' + (hi ? 2.5 : 1.2) + '"/>' +
-        '<text x="' + (x + cw / 2) + '" y="' + (y + ch / 2) + '" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Sans KR, sans-serif" font-weight="600" font-size="14" fill="' + (hi ? '#ffffff' : '#3A3150') + '">' + esc(hi ? '▶ ' + k.name : k.name) + '</text>';
+        '<text x="' + (x + cw / 2) + '" y="' + (y + ch / 2) + '" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Sans KR, sans-serif" font-weight="600" font-size="' + Math.min(14, Math.floor((cw - 12) / Math.max(1, (hi ? 2 : 0) + String(k.name).length) * 1.1)) + '" fill="' + (hi ? '#ffffff' : '#3A3150') + '">' + esc(hi ? '▶ ' + k.name : k.name) + '</text>';
     });
   });
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" role="img" aria-label="' + esc(cab.name || '') + ' 칸 그림">' + g + '</svg>';
