@@ -151,7 +151,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-K · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-M · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -288,7 +288,7 @@ function start() {
   });
 }
 
-const SCREEN_VER = '10.08-K';
+const SCREEN_VER = '10.08-M';
 const FLASK = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M13 4h8M14 4v9L6 27a3 3 0 0 0 2.6 4.5h16.8A3 3 0 0 0 28 27l-8-14V4" fill="#E3DAFF" stroke="#3A3150" stroke-width="2.4" stroke-linejoin="round"/><path d="M9.3 22h15.4l2.6 5a2 2 0 0 1-1.8 3H8.5a2 2 0 0 1-1.8-3z" fill="#FF5C9E"/><circle cx="14" cy="26" r="1.6" fill="#fff"/><circle cx="19.5" cy="24.5" r="1.1" fill="#fff"/></svg>';
 function render() {
   const d = st.data, T = st.mode === 'teacher';
@@ -554,17 +554,25 @@ function drawCabList() {
   bindItemCards($('#cabList'));
 }
 function cabDetail(cabId) {
-  const d = st.data, c = d.cabs.find(x => x.id === cabId) || {}, sp = d.spaces.find(s => s.id === c.space) || {};
-  const items = d.items.filter(it => it.cab === cabId), byKan = {};
-  (d.kans || []).filter(k => k.cab === cabId).forEach(k => { byKan[k.name] = []; });
-  items.forEach(it => (byKan[it.kanName] = byKan[it.kanName] || []).push(it));
+  const d = st.data, T = st.mode === 'teacher', c = d.cabs.find(x => x.id === cabId) || {}, sp = d.spaces.find(s => s.id === c.space) || {};
+  const items = d.items.filter(it => it.cab === cabId), kans = (d.kans || []).filter(k => k.cab === cabId);
+  const groups = kans.map(k => ({ id: k.id, name: k.name, list: items.filter(it => it.kan === k.id) }));
+  const rest = items.filter(it => !kans.some(k => k.id === it.kan));
+  if (rest.length) groups.push({ id: '', name: '칸 정보 없음', list: rest });
+  const chip = it => '<button class="b" style="border:0;cursor:pointer;font-size:14px;padding:4px 9px" data-item="' + esc(it.id) + '">' + esc(it.name) + (it.qty !== '' ? ' · ' + num(it.qty) + esc(it.unit || '') : '') + '</button>';
+  const addBtn = id => T && id ? '<button class="btn" data-addkan="' + esc(id) + '" style="padding:3px 10px;font-size:13px">+ 여기에 추가</button>' : '';
   openModal('<h2>' + esc(c.name || '') + '</h2><div class="note">' + esc(sp.name || '') + ' · 교구 ' + items.length + '개</div>' +
     (c.desc ? '<p>📍 ' + esc(c.desc) + '</p>' : '') +
+    (T ? '<div class="btns" style="justify-content:flex-start;margin:8px 0 4px"><button class="btn pri" id="addHere">+ 이 사물함에 교구 추가</button></div>' : '') +
     '<div class="cabsvg">' + cabSVG(cabId, '') + '</div>' +
-    Object.keys(byKan).map(k => '<div class="sec">' + esc(k) + '</div>' + (byKan[k].length ? '<div class="badges">' + byKan[k].map(it =>
-      '<button class="b" style="border:0;cursor:pointer;font-size:14px;padding:4px 9px" data-item="' + esc(it.id) + '">' + esc(it.name) + (it.qty !== '' ? ' · ' + num(it.qty) + esc(it.unit || '') : '') + '</button>').join('') + '</div>'
-      : '<div class="note">비어 있어요</div>')).join(''));
+    groups.map(g => '<div class="sec" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>' + esc(g.name) + '</span>' + addBtn(g.id) + '</div>' +
+      (g.list.length ? '<div class="badges">' + g.list.map(chip).join('') + '</div>' : '<div class="note">비어 있어요</div>')).join(''));
   $('#modal').querySelectorAll('[data-item]').forEach(b => b.onclick = () => itemDetail(b.dataset.item));
+  if (T) {
+    const add = kan => itemForm(null, { state: '정상', unit: '개', kan: kan, backCab: cabId });
+    $('#addHere').onclick = () => add(kans.length === 1 ? kans[0].id : '');
+    $('#modal').querySelectorAll('[data-addkan]').forEach(b => b.onclick = () => add(b.dataset.addkan));
+  }
 }
 function itemDetail(id) {
   const d = st.data, it = d.items.find(x => x.id === id); if (!it) return;
@@ -582,9 +590,17 @@ function itemDetail(id) {
 }
 
 // ── 공통 폼 ──
-function kanSelect(name, val) {
-  const groups = {};
-  st.data.kans.forEach(k => { const p = k.label.split(' › '); const g = p.slice(0, 2).join(' › '); (groups[g] = groups[g] || []).push(k); });
+// 시약장인 수납함 (수납함 시트 '종류'가 시약장이거나 이름에 '시약장')
+const isRgCab = c => !!c && (String(c.kind || '').trim() === '시약장' || /시약장/.test(String(c.name || '')));
+function kanSelect(name, val, rgOnly) {
+  const groups = {}, cabOf = id => st.data.cabs.find(c => c.id === id);
+  let list = st.data.kans;
+  if (rgOnly) {
+    list = list.filter(k => isRgCab(cabOf(k.cab)));
+    const cur = val && !list.some(k => k.id === val) ? st.data.kans.find(k => k.id === val) : null;   // 예전에 다른 곳에 둔 시약: 보이게만 두고 옮기도록 안내
+    if (cur) list = list.concat(Object.assign({}, cur, { label: '⚠ 시약장 아님 — 옮겨 주세요 › ' + cur.label }));
+  }
+  list.forEach(k => { const p = k.label.split(' › '); const g = p.slice(0, 2).join(' › '); (groups[g] = groups[g] || []).push(k); });
   return '<select name="' + name + '"><option value="">— 칸 선택 —</option>' + Object.keys(groups).map(g => '<optgroup label="' + esc(g) + '">' +
     groups[g].map(k => '<option value="' + esc(k.id) + '"' + (k.id === val ? ' selected' : '') + '>' + esc(k.label.split(' › ').slice(2).join(' › ') || k.id) + ' (' + esc(k.id) + ')</option>').join('') + '</optgroup>').join('') + '</select>';
 }
@@ -592,7 +608,7 @@ function field(f, v) {
   v = v == null ? '' : v;
   const cls = ' class="' + (f.full ? 'full' : '') + '" data-f="' + f.k + '"';
   f = Object.assign({}, f, { label: f.label + (f.req ? '<span class="req">*</span>' : '') });
-  if (f.type === 'kan') return '<label' + cls + '>' + f.label + kanSelect(f.k, v) + '</label>';
+  if (f.type === 'kan') return '<label' + cls + '>' + f.label + kanSelect(f.k, v, f.rg) + (f.rg ? '<span class="note" style="font-weight:400">시약은 시약장 칸에만 둘 수 있어요.</span>' : '') + '</label>';
   if (f.type === 'select') return '<label' + cls + '>' + f.label + '<select name="' + f.k + '"><option value=""></option>' + f.opts.map(o => '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select></label>';
   if (f.type === 'check') return '<label data-f="' + f.k + '" class="chk' + (f.full ? ' full' : '') + '"><input type="checkbox" name="' + f.k + '"' + (v === true || v === 'TRUE' ? ' checked' : '') + '>' + f.label + '</label>';
   if (f.type === 'area') return '<label class="full" data-f="' + f.k + '">' + f.label + '<textarea name="' + f.k + '" rows="2">' + esc(v) + '</textarea></label>';
@@ -623,6 +639,7 @@ function itemForm(it, preset) {
     { k: 'cat', label: '분류', type: 'select', opts: o.cat, req: true }, { k: 'state', label: '상태', type: 'select', opts: o.state, req: true },
     { k: 'kan', label: '위치(칸)', type: 'kan', full: true, req: true }, { k: 'qty', label: '수량', type: 'number', req: true }, { k: 'unit', label: '단위', ph: '개, 대, 세트' },
     { k: 'photo', label: '사진 링크 (드라이브 공유 링크)', full: true }, { k: 'note', label: '비고', type: 'area' }];
+  const back = preset && preset.backCab;   // 사물함 화면에서 들어왔으면 저장 후 그 사물함 화면으로 돌아감
   const v = preset || (it ? { name: it.name, kw: it.kw, cat: it.cat, state: it.state, kan: it.kan, qty: it.qty, unit: it.unit, photo: it.photoRaw, note: it.note } : { state: '정상', unit: '개' });
   openModal('<h2>' + (it ? '교구 수정' : '새 교구') + '</h2>' + (it ? '<div class="note">' + esc(it.id) + '</div>' : '') +
     '<div class="form" id="f">' + REQNOTE + F.map(f => field(f, v[f.k])).join('') + '</div><div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
@@ -633,13 +650,13 @@ function itemForm(it, preset) {
     const local = Object.assign({}, it || {}, obj, placeOf(obj.kan), { photoRaw: obj.photo, photo: driveImg(obj.photo),
       qty: obj.qty === '' ? '' : Number(obj.qty), id: it ? it.id : 'new-' + Date.now(), _pending: true });
     let target = it; if (it) Object.assign(it, local); else { target = local; items.push(local); }
-    closeModal(); rerender();
+    closeModal(); rerender(); if (back) cabDetail(back);
     save('saveItem', obj, res => {
       const i = items.indexOf(target); if (i >= 0) items[i] = res.item; else items.push(res.item);
-      rerender(); toast('저장했어요 · ' + res.item.id);
+      rerender(); if (back && $('#addHere')) cabDetail(back); toast('저장했어요 · ' + res.item.id + ' ' + res.item.name);
     }, e => {
       if (it) { Object.keys(it).forEach(k => delete it[k]); Object.assign(it, snap); } else { const i = items.indexOf(target); if (i >= 0) items.splice(i, 1); }
-      rerender(); toast('저장하지 못했어요: ' + e.message, true); itemForm(it, obj);
+      rerender(); toast('저장하지 못했어요: ' + e.message, true); itemForm(it, Object.assign(obj, back ? { backCab: back } : {}));
     });
   };
 }
@@ -728,7 +745,7 @@ function rgForm(r, preset) {
   const o = st.data.opt;
   const F = [{ k: 'name', label: '시약명', full: true, ph: '예: 묽은 염산(10%)', req: true }, { k: 'conc', label: '농도 (병 라벨에 적힌 대로)', ph: '예: 10%, 0.1 M — 모르면 비워 두기' }, { k: 'formula', label: '화학식' },
     { k: 'cas', label: 'CAS번호' }, { k: 'haz', label: '유해화학물질 여부 (자동)', type: 'select', opts: o.haz },
-    { k: 'kan', label: '보관 위치(칸)', type: 'kan', full: true, req: true }, { k: 'spec', label: '규격 (한 병 용량)', ph: '예: 500 mL', req: true }, { k: 'cnt', label: '개수(병)', type: 'number' },
+    { k: 'kan', label: '보관 위치(칸)', type: 'kan', rg: true, full: true, req: true }, { k: 'spec', label: '규격 (한 병 용량)', ph: '예: 500 mL', req: true }, { k: 'cnt', label: '개수(병)', type: 'number' },
     { k: 'unit', label: '관리단위', type: 'select', opts: o.unit }, { k: 'base', label: '기초재고량 (처음 등록할 때 남아 있던 양)', type: 'number' },
     { k: 'inDate', label: '입고일', type: 'date' }, { k: 'openDate', label: '개봉일', type: 'date' }, { k: 'exp', label: '유효기한', type: 'date' },
     { k: 'msdsDate', label: 'MSDS 게시일', type: 'date' }, { k: 'msds', label: 'MSDS 게시함', type: 'check' }, { k: 'noMsds', label: 'MSDS 비대상 (업체 확인)', type: 'check' }, { k: 'waste', label: '폐기 예정', type: 'check' },
@@ -967,7 +984,7 @@ function buyNew(preset) {
       '<label data-f="specNum">규격 (한 병 용량)<span class="req">*</span><span style="display:flex;gap:6px"><input name="specNum" type="number" step="any" inputmode="decimal" placeholder="500" value="' + esc(p.specNum || '') + '" style="flex:1;min-width:0">' +
         '<select name="specUnit" style="width:84px">' + ['mL', 'L', 'g', 'kg'].map(u => '<option' + (u === (p.specUnit || 'mL') ? ' selected' : '') + '>' + u + '</option>').join('') + '</select></span></label>' +
       field({ k: 'bottles', label: '산 병 수', type: 'number', req: true }, p.bottles || 1) +
-      field({ k: 'kan', label: '보관 위치(칸)', type: 'kan', full: true, req: true }, p.kan) +
+      field({ k: 'kan', label: '보관 위치(칸)', type: 'kan', rg: true, full: true, req: true }, p.kan) +
       field({ k: 'date', label: '입고일', type: 'date', req: true }, p.date || today()) +
       field({ k: 'who', label: '담당교사', req: true, ph: '이름' }, p.who || WHO()) +
       '<div class="auto" id="nprev"></div>' +
