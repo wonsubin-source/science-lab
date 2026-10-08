@@ -151,7 +151,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-A · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-C · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -644,6 +644,7 @@ function rgFlags(r) {
   const f = [];
   if (r.haz === 'O') f.push(['유해화학물질', 'bad']);
   if (r.haz === '확인 필요') f.push(['유해 여부 확인', 'warn']);
+  if (needConc(r)) f.push(['농도 확인', 'warn']);
   if (r.expState === '기한 지남') f.push(['기한 지남', 'bad']); else if (r.expState === '90일 이내') f.push(['기한 임박', 'warn']);
   if (r.msds !== true && r.msds !== 'TRUE') f.push(['MSDS 미게시', 'warn']);
   if (r.check === '옮기기 권장') f.push(['옮기기 권장', 'bad']);
@@ -655,7 +656,7 @@ function rgFlags(r) {
 function rgFilter(r) {
   switch (st.rf) {
     case '유해화학물질': return r.haz === 'O';
-    case '확인 필요': return r.haz === '확인 필요';
+    case '확인 필요': return r.haz === '확인 필요' || needConc(r);
     case '유효기한': return r.expState === '기한 지남' || r.expState === '90일 이내';
     case 'MSDS 미게시': return !(r.msds === true || r.msds === 'TRUE');
     case '옮기기 권장': return r.check === '옮기기 권장';
@@ -712,8 +713,8 @@ function rgDetail(id) {
 }
 function rgForm(r, preset) {
   const o = st.data.opt;
-  const F = [{ k: 'name', label: '시약명', full: true, ph: '예: 묽은 염산(10%)', req: true }, { k: 'conc', label: '농도', ph: '예: 10%, 0.1 M', req: true }, { k: 'formula', label: '화학식' },
-    { k: 'cas', label: 'CAS번호' }, { k: 'haz', label: '유해화학물질 여부', type: 'select', opts: o.haz, req: true },
+  const F = [{ k: 'name', label: '시약명', full: true, ph: '예: 묽은 염산(10%)', req: true }, { k: 'conc', label: '농도 (병 라벨에 적힌 대로)', ph: '예: 10%, 0.1 M — 모르면 비워 두기' }, { k: 'formula', label: '화학식' },
+    { k: 'cas', label: 'CAS번호' }, { k: 'haz', label: '유해화학물질 여부 (자동)', type: 'select', opts: o.haz },
     { k: 'kan', label: '보관 위치(칸)', type: 'kan', full: true, req: true }, { k: 'spec', label: '규격 (한 병 용량)', ph: '예: 500 mL', req: true }, { k: 'cnt', label: '개수(병)', type: 'number' },
     { k: 'unit', label: '관리단위', type: 'select', opts: o.unit }, { k: 'base', label: '기초재고량 (처음 등록할 때 남아 있던 양)', type: 'number' },
     { k: 'inDate', label: '입고일', type: 'date' }, { k: 'openDate', label: '개봉일', type: 'date' }, { k: 'exp', label: '유효기한', type: 'date' },
@@ -721,11 +722,13 @@ function rgForm(r, preset) {
     { k: 'msdsLink', label: 'MSDS 링크 (판매업체에서 받은 파일)', full: true }, { k: 'msdsVendor', label: 'MSDS 제공업체', full: true }, { k: 'note', label: '비고', type: 'area' }];
   const v = preset || r || { haz: '확인 필요' };
   openModal('<h2>' + (r ? '시약 정보 수정' : '새 시약 등록') + '</h2>' + (r ? '<div class="note">' + esc(r.id) + '</div>' : '<div class="alert ac">저장하면 유해화학물질 기준농도, 분류, 추천 보관 위치가 자동으로 계산돼요.</div>') +
-    '<div class="form" id="f">' + REQNOTE + F.map(f => field(f, v[f.k])).join('') + '</div>' +
-    '<p class="note">새로 산 병은 여기서 개수를 바꾸지 말고 <b>[+ 시약 구입·입고]</b>로 기록해 주세요. 그래야 출납대장에 입고가 남아요. 유해화학물질 여부는 병 라벨의 실제 농도를 [부록9] 기준농도와 비교해 정해 주세요. MSDS는 판매업체에서 받은 것만 유효해요.</p>' +
+    '<div class="form" id="f">' + REQNOTE + F.map(f => field(f, v[f.k]) + (f.k === 'haz' ? '<div class="auto full" id="hazbox" style="grid-column:1/-1;display:none"></div>' : '')).join('') + '</div>' +
+    '<p class="note">새로 산 병은 여기서 개수를 바꾸지 말고 <b>[+ 시약 구입·입고]</b>로 기록해 주세요. 그래야 출납대장에 입고가 남아요. 유해화학물질 여부는 시약명·농도로 자동 판정돼요(틀리면 직접 바꾸기). 모르면 "확인 필요"로 두세요. MSDS는 판매업체에서 받은 것만 유효해요.</p>' +
     '<div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
+  hookHaz($('#f'));
   $('#save').onclick = () => {
     const obj = readForm($('#f'), F); if (r) obj.id = r.id;
+    if (!obj.haz) obj.haz = '확인 필요';
     if (!checkReq($('#f'), F, obj)) return;
     const list = st.data.reagents, snap = r ? JSON.parse(JSON.stringify(r)) : null;
     const pl = placeOf(obj.kan);
@@ -811,6 +814,112 @@ function buyOld(preRid) {
   };
 }
 // 처음 사는 시약 등록 + 입고
+// ───────────────── 유해화학물질 자동 판정 ([부록9] 기준농도와 비교) ─────────────────
+const HAZ_STD0 = [{"n": "과망가니즈산 칼륨", "f": "KMnO4", "cas": "7722-64-7", "a": "5%", "b": "98%"}, {"n": "과산화 수소", "f": "H2O2", "cas": "7722-84-1", "a": "6%", "b": "35%"}, {"n": "구리", "f": "Cu", "cas": "7440-50-8", "a": "해당없음", "b": "해당없음"}, {"n": "나트륨", "f": "Na", "cas": "7440-23-5", "a": "25%", "b": "25%"}, {"n": "다이크로뮴산 칼륨", "f": "K2Cr2O7", "cas": "7778-50-9", "a": "0.1%", "b": "해당없음"}, {"n": "메탄올", "f": "CH3OH", "cas": "67-56-1", "a": "10%", "b": "85%"}, {"n": "벤젠", "f": "C6H6", "cas": "71-43-2", "a": "85%", "b": "85%"}, {"n": "붕산", "f": "H3BO3", "cas": "10043-35-3", "a": "0.3%", "b": "해당없음"}, {"n": "붕소", "f": "B", "cas": "7440-42-8", "a": "해당없음", "b": "해당없음"}, {"n": "수산화 나트륨", "f": "NaOH", "cas": "1310-73-2", "a": "5%", "b": "해당없음"}, {"n": "수산화 암모늄", "f": "NH4OH", "cas": "1336-21-6", "a": "10%", "b": "10%"}, {"n": "수산화 칼슘", "f": "Ca(OH)2", "cas": "1305-62-0", "a": "해당없음", "b": "해당없음"}, {"n": "수산화 칼륨", "f": "KOH", "cas": "1310-58-3", "a": "5%", "b": "해당없음"}, {"n": "시안화 칼륨", "f": "KCN", "cas": "97-1-90", "a": "1%", "b": "해당없음"}, {"n": "아세톤", "f": "C3H6O", "cas": "67-64-1", "a": "해당없음", "b": "해당없음"}, {"n": "아세트산", "f": "C2H4O2", "cas": "64-19-7", "a": "25%", "b": "해당없음"}, {"n": "암모니아", "f": "NH3", "cas": "7664-41-7", "a": "10%", "b": "10%"}, {"n": "에탄올", "f": "C2H2O", "cas": "64-17-5", "a": "해당없음", "b": "해당없음"}, {"n": "염소산 나트륨", "f": "NaClO3", "cas": "7775-09-9", "a": "25%", "b": "98%"}, {"n": "염화 구리(Ⅰ)", "f": "CuCl", "cas": "7758-89-6", "a": "1%", "b": "해당없음"}, {"n": "염화 구리(Ⅱ)", "f": "CuCl2", "cas": "7447-39-4", "a": "해당없음", "b": "해당없음"}, {"n": "염화 나트륨", "f": "NaCl", "cas": "7647-14-5", "a": "해당없음", "b": "해당없음"}, {"n": "염화 바륨", "f": "BaCl2", "cas": "10361-37-2", "a": "해당없음", "b": "해당없음"}, {"n": "염화 수소(염산)", "f": "HCl", "cas": "7647-01-0", "a": "10%", "b": "10%"}, {"n": "염화 아연", "f": "ZnCl2", "cas": "7646-85-7", "a": "25%", "b": "해당없음"}, {"n": "아이오딘", "f": "I2", "cas": "7553-56-2", "a": "해당없음", "b": "해당없음"}, {"n": "이산화 망간", "f": "MnO2", "cas": "1313-13-9", "a": "해당없음", "b": "해당없음"}, {"n": "질산", "f": "HNO3", "cas": "7697-37-2", "a": "10%", "b": "10%"}, {"n": "질산 나트륨", "f": "NaNO3", "cas": "7631-99-4", "a": "해당없음", "b": "98%"}, {"n": "질산 납", "f": "Pb(NO3)2", "cas": "10099-74-8", "a": "0.3%", "b": "해당없음"}, {"n": "질산 암모늄", "f": "NH4NO3", "cas": "6484-52-2", "a": "해당없음", "b": "33%"}, {"n": "질산 은", "f": "AgNO3", "cas": "7761-88-8", "a": "1%", "b": "해당없음"}, {"n": "질산 칼륨", "f": "KNO3", "cas": "7757-79-1", "a": "해당없음", "b": "98%"}, {"n": "탄산 나트륨", "f": "Na2CO3", "cas": "497-19-8", "a": "해당없음", "b": "해당없음"}, {"n": "탄산 바륨", "f": "BaCO3", "cas": "513-77-9", "a": "해당없음", "b": "해당없음"}, {"n": "탄산 칼륨", "f": "K2CO3", "cas": "584-08-7", "a": "해당없음", "b": "해당없음"}, {"n": "탄산 칼슘", "f": "CaCO3", "cas": "471-34-1", "a": "해당없음", "b": "해당없음"}, {"n": "황산", "f": "H2SO4", "cas": "7664-93-9", "a": "10%", "b": "10%"}, {"n": "황산 바륨", "f": "BaSO4", "cas": "7727-43-7", "a": "해당없음", "b": "해당없음"}, {"n": "황산 아연", "f": "ZnSO4", "cas": "7733-02-0", "a": "25%", "b": "해당없음"}, {"n": "나프탈렌", "f": "C10H8", "cas": "91-20-3", "a": "25%", "b": "해당없음"}, {"n": "산화 구리(Ⅰ)", "f": "Cu2O", "cas": "1317-39-1", "a": "1%", "b": "해당없음"}, {"n": "산화 구리(Ⅱ)", "f": "CuO", "cas": "1317-38-0", "a": "1%", "b": "해당없음"}, {"n": "황산 구리(Ⅰ)", "f": "Cu2SO4", "cas": "7758-98-7", "a": "1%", "b": "해당없음"}, {"n": "황산 구리(Ⅱ)", "f": "CuSO4", "cas": "7758-99-8", "a": "1%", "b": "해당없음"}, {"n": "염화 은", "f": "AgCl", "cas": "7783-90-6", "a": "1%", "b": "해당없음"}];
+const ATOM = { H: 1.008, B: 10.81, C: 12.01, N: 14.01, O: 16.00, F: 19.00, Na: 22.99, Mg: 24.31, Al: 26.98, Si: 28.09, P: 30.97, S: 32.06, Cl: 35.45, K: 39.10, Ca: 40.08,
+  Cr: 52.00, Mn: 54.94, Fe: 55.85, Co: 58.93, Ni: 58.69, Cu: 63.55, Zn: 65.38, Br: 79.90, Ag: 107.87, Sn: 118.71, I: 126.90, Ba: 137.33, Hg: 200.59, Pb: 207.2 };
+// 화학식 → 분자량 (괄호, 수화물 · 지원). 모르는 원소가 있으면 0
+function molMass(f) {
+  f = String(f || '').replace(/\s/g, '').replace(/[·•]/g, '.');
+  if (!f) return 0;
+  let bad = false;
+  const part = t => {
+    const stack = [{}]; let i = 0;
+    while (i < t.length) {
+      const ch = t[i];
+      if (ch === '(' || ch === '[') { stack.push({}); i++; continue; }
+      if (ch === ')' || ch === ']') { i++; let n = ''; while (/\d/.test(t[i] || '')) n += t[i++]; const top = stack.pop(), k = Number(n || 1); Object.keys(top).forEach(e => { stack[stack.length - 1][e] = (stack[stack.length - 1][e] || 0) + top[e] * k; }); continue; }
+      const m = /^([A-Z][a-z]?)(\d*)/.exec(t.slice(i));
+      if (!m) { bad = true; break; }
+      stack[stack.length - 1][m[1]] = (stack[stack.length - 1][m[1]] || 0) + Number(m[2] || 1); i += m[0].length;
+    }
+    let w = 0; Object.keys(stack[0]).forEach(e => { if (!ATOM[e]) bad = true; else w += ATOM[e] * stack[0][e]; });
+    return w;
+  };
+  const w = f.split('.').reduce((a, t) => { const m = /^(\d+)(.*)$/.exec(t); return a + (m ? Number(m[1]) * part(m[2]) : part(t)); }, 0);
+  return bad ? 0 : w;
+}
+const hzNorm = s => String(s || '').replace(/\([ⅠⅡI]+\)/g, '').replace(/\s+/g, '').replace(/포타슘/g, '칼륨').replace(/소듐/g, '나트륨').replace(/망가니즈/g, '망간')
+  .replace(/사이안/g, '시안').replace(/요오드/g, '아이오딘').toLowerCase();
+const HZ_ALIAS = { '염산': '염화수소', '묽은염산': '염화수소', '진한염산': '염화수소', '암모니아수': '수산화암모늄', '석회수': '수산화칼슘', '초산': '아세트산', '빙초산': '아세트산',
+  '과산화수소수': '과산화수소', '가성소다': '수산화나트륨', '양잿물': '수산화나트륨', '에틸알코올': '에탄올', '알코올': '에탄올', '메탄올': '메탄올', '메틸알코올': '메탄올', '소금': '염화나트륨', '탄산소다': '탄산나트륨' };
+// 물질 이름 뒤에 붙어도 되는 말 (그 외가 붙으면 다른 물질: 아이오딘화칼륨 ≠ 아이오딘, 황산나트륨 ≠ 황산)
+const HZ_REST = /^(?:수?용액|분말|가루|결정|고체|시약|무수물?|[일이삼사오육칠팔구]?수화물|수|액|원액|특급|일급|희석액|표준액|표준용액|병|g|kg|ml|l|cc|mol|m|n|ppm|\s)*$/i;
+function hazStdList() { const d = st.data || {}; return (d.hazStd && d.hazStd.length) ? d.hazStd : HAZ_STD0; }
+// 시약명(·화학식·CAS)으로 기준표에서 물질 찾기 — 가장 길게 일치하는 이름 우선
+function findStd(name, formula, cas) {
+  const L = hazStdList(), c = String(cas || '').trim(), f = String(formula || '').replace(/\s/g, '');
+  if (c) { const h = L.filter(x => x.cas === c); if (h.length) return h; }
+  if (f) { const h = L.filter(x => x.f.replace(/\s/g, '') === f); if (h.length) return h; }
+  let n = hzNorm(String(name || '').replace(/\(.*?\)/g, ' ').replace(/[\d.,~%]+/g, ' '));
+  if (!n) return [];
+  n = n.replace(/^(묽은|진한)/, '');
+  Object.keys(HZ_ALIAS).sort((a, b) => b.length - a.length).some(k => { if (n.indexOf(k) === 0) { n = HZ_ALIAS[k] + n.slice(k.length); return true; } });
+  let best = [], len = 0;
+  L.forEach(x => {
+    const pm = /\(([^)]+)\)/.exec(x.n), keys = [hzNorm(x.n)].concat(pm ? [hzNorm(pm[1])] : []).map(k => k.replace(/\(.*?\)/g, ''));
+    keys.forEach(k => { if (k && n.indexOf(k) === 0 && HZ_REST.test(n.slice(k.length))) { if (k.length > len) { best = [x]; len = k.length; } else if (k.length === len && best.indexOf(x) < 0) best.push(x); } });
+  });
+  return best;
+}
+const pctOf = s => { const m = String(s || '').match(/([\d.]+)\s*%/); return m ? Number(m[1]) : null; };
+// 농도 글 → % (35~37% → 37, 1000ppm → 0.1, 0.1 M → 분자량으로 환산, 분말·고체 → 100)
+function concPct(conc, name, formula) {
+  const t = String(conc || '') + ' ' + String(name || '');
+  let m = t.match(/([\d.]+)\s*(?:~|-|∼)\s*([\d.]+)\s*%/); if (m) return { p: Number(m[2]), how: '' };
+  m = t.match(/([\d.]+)\s*%/); if (m) return { p: Number(m[1]), how: '' };
+  m = t.match(/([\d.,]+)\s*ppm/i); if (m) { const v = Number(m[1].replace(/,/g, '')) / 10000; return { p: v, how: m[1] + ' ppm = ' + num(v) + '%' }; }
+  m = t.match(/([\d.]+)\s*(?:M\b|mol\/L|mol\b|몰)/i);
+  if (m) {
+    const mw = molMass(formula);
+    if (!mw) return { p: null, how: '몰농도는 화학식을 알아야 %로 바꿀 수 있어요' };
+    const v = Number(m[1]) * mw / 10;
+    return { p: v, how: m[1] + ' M → 약 ' + num(Math.round(v * 100) / 100) + '% (분자량 ' + num(Math.round(mw * 10) / 10) + ', 밀도 1로 보고 넉넉하게 계산)' };
+  }
+  if (/분말|가루|고체|결정|원액|시약급|특급|1급/.test(t)) return { p: 100, how: '분말·원액은 거의 100%로 보고 판정' };
+  return { p: null, how: '' };
+}
+// → { verdict: 'O'|'X'|'확인 필요', html: 설명 }
+function judgeHaz(name, conc, formula, cas) {
+  if (!String(name || '').trim()) return { verdict: '', html: '' };
+  const hit = findStd(name, formula, cas);
+  const kreach = '<a href="https://kreach.mcee.go.kr" target="_blank" rel="noopener">화학물질정보처리시스템</a>';
+  if (!hit.length) return { verdict: '확인 필요', html: '[부록9] 기준표에 없는 물질이에요. 병 라벨이나 MSDS의 CAS번호로 ' + kreach + '에서 규제정보를 확인해 주세요. 우선 <b>확인 필요</b>로 저장돼요.' };
+  const thr = x => [x.a, x.b].map(pctOf).filter(v => v != null);
+  const stdTxt = hit.map(x => '<b>' + esc(x.n) + '</b> 유독 ' + esc(x.a || '—') + ' · 사고대비 ' + esc(x.b || '—')).join('<br>');
+  const lims = hit.map(x => thr(x)).map(a => a.length ? Math.min.apply(null, a) : null);
+  if (lims.every(v => v == null)) return { verdict: 'X', html: stdTxt + '<br>→ 기준농도가 없어 유해화학물질이 <b>아니에요 (X)</b>.' };
+  const mixed = lims.some(v => v == null) || lims.some(v => v !== lims[0]);
+  const formula2 = formula || hit[0].f;
+  const cp = concPct(conc, name, formula2);
+  if (cp.p == null) return { verdict: '확인 필요', html: stdTxt + '<br>→ 농도를 알면 바로 판정돼요. 병 라벨의 %나 M을 농도 칸에 적어 주세요. ' + (cp.how ? esc(cp.how) + '. ' : '') + '모르면 <b>확인 필요</b>로 저장돼요.' };
+  if (mixed) return { verdict: '확인 필요', html: stdTxt + '<br>→ 이름이 비슷한 물질의 기준이 서로 달라요. 병 라벨의 화학식(예: CuCl₂)을 "더 입력하기"에 적으면 정확히 판정돼요.' };
+  const lim = lims[0], o = cp.p >= lim;
+  return { verdict: o ? 'O' : 'X', html: stdTxt + '<br>→ ' + (cp.how ? esc(cp.how) + ' · ' : '') + '농도 ' + num(Math.round(cp.p * 1000) / 1000) + '% 는 기준 ' + num(lim) + '% ' + (o ? '<b>이상 → 유해화학물질 (O)</b>' : '<b>미만 → 유해화학물질 아님 (X)</b>') };
+}
+// 농도가 비었고, [부록9]에 기준농도(%)가 있는 물질이라 농도를 알아야 판정되는 시약
+function needConc(r) {
+  if (String(r.conc || '').trim() || concPct('', r.name, r.formula).p != null) return false;
+  return findStd(r.name, r.formula, r.cas).some(x => pctOf(x.a) != null || pctOf(x.b) != null);
+}
+// 폼에 붙이기: 시약명·농도·화학식·CAS가 바뀌면 판정을 보여 주고, 선생님이 직접 고르지 않았으면 유해화학물질 여부를 자동으로 채움
+function hookHaz(f) {
+  const sel = f.querySelector('[name=haz]'), box = f.querySelector('#hazbox');
+  if (!sel || !box) return;
+  let touched = !!sel.value && sel.value !== '확인 필요';
+  sel.addEventListener('change', e => { if (e.isTrusted) touched = true; run(); });
+  const val = k => { const el = f.querySelector('[name=' + k + ']'); return el ? el.value : ''; };
+  function run() {
+    const j = judgeHaz(val('name'), val('conc'), val('formula'), val('cas'));
+    if (!touched && j.verdict) sel.value = j.verdict;
+    box.style.display = j.html ? '' : 'none';
+    box.innerHTML = j.html ? '<b>자동 판정' + (j.verdict ? ': ' + esc(j.verdict) : '') + '</b>' + (touched && j.verdict && sel.value !== j.verdict ? ' <span style="color:var(--warn)">(직접 고른 값 "' + esc(sel.value) + '"과 달라요)</span>' : '') +
+      '<br>' + j.html + '<div class="note" style="margin-top:4px">판정이 틀리면 유해화학물질 여부를 직접 바꿔도 돼요.</div>' : '';
+  }
+  ['name', 'conc', 'formula', 'cas'].forEach(k => { const el = f.querySelector('[name=' + k + ']'); if (el) el.addEventListener('input', run); });
+  run();
+}
+
 function buyNew(preset) {
   const d = st.data, o = d.opt, p = preset || {};
   const MORE = [{ k: 'formula', label: '화학식' }, { k: 'cas', label: 'CAS번호' }, { k: 'exp', label: '유효기한', type: 'date' }, { k: 'openDate', label: '개봉일', type: 'date' },
@@ -820,8 +929,9 @@ function buyNew(preset) {
     '<div class="form" id="bn">' + REQNOTE +
       field({ k: 'name', label: '시약명', full: true, req: true, ph: '예: 수산화 나트륨' }, p.name) +
       '<div id="dup" class="full" style="grid-column:1/-1"></div>' +
-      field({ k: 'conc', label: '농도', req: true, ph: '예: 1 M, 10%, 분말 99%' }, p.conc) +
-      field({ k: 'haz', label: '유해화학물질 여부', type: 'select', opts: o.haz, req: true }, p.haz) +
+      field({ k: 'conc', label: '농도 (병 라벨에 적힌 대로)', ph: '예: 35%, 0.1 M, 분말 — 모르면 비워 두기' }, p.conc) +
+      field({ k: 'haz', label: '유해화학물질 여부 (자동)', type: 'select', opts: o.haz }, p.haz) +
+      '<div class="auto full" id="hazbox" style="grid-column:1/-1;display:none"></div>' +
       '<label data-f="specNum">규격 (한 병 용량)<span class="req">*</span><span style="display:flex;gap:6px"><input name="specNum" type="number" step="any" inputmode="decimal" placeholder="500" value="' + esc(p.specNum || '') + '" style="flex:1;min-width:0">' +
         '<select name="specUnit" style="width:84px">' + ['mL', 'L', 'g', 'kg'].map(u => '<option' + (u === (p.specUnit || 'mL') ? ' selected' : '') + '>' + u + '</option>').join('') + '</select></span></label>' +
       field({ k: 'bottles', label: '산 병 수', type: 'number', req: true }, p.bottles || 1) +
@@ -830,7 +940,7 @@ function buyNew(preset) {
       field({ k: 'who', label: '담당교사', req: true, ph: '이름' }, p.who || WHO()) +
       '<div class="auto" id="nprev"></div>' +
       '<details class="more"><summary>더 입력하기 (선택) — 화학식, CAS, 유효기한, MSDS</summary><div class="form">' + MORE.map(m => field(m, p[m.k])).join('') + '</div></details>' +
-    '</div><p class="note">유해화학물질 여부는 병 라벨의 농도를 [부록9] 기준농도와 비교해 정해 주세요. 모르면 "확인 필요"를 고르세요.</p>' +
+    '</div><p class="note">농도와 유해화학물질 여부는 몰라도 저장돼요. 시약명과 농도를 적으면 [부록9] 기준농도와 비교해 자동으로 골라 주고, 모르면 "확인 필요"로 저장돼 <b>점검</b> 탭에 모여요.</p>' +
     '<div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="nsave">등록하고 입고 기록하기</button></div>');
   const f = $('#bn');
   const prev = () => {
@@ -844,9 +954,9 @@ function buyNew(preset) {
       '). 같은 시약을 또 산 거라면 <button class="btn" id="toOld" style="padding:4px 10px;font-size:13px">이미 있는 시약으로 입고</button></div>' : '';
     const t = $('#toOld'); if (t) t.onclick = () => buyOld(same[0].id);
   };
-  f.querySelectorAll('input,select').forEach(el => { el.addEventListener('input', prev); el.addEventListener('change', prev); }); prev();
+  f.querySelectorAll('input,select').forEach(el => { el.addEventListener('input', prev); el.addEventListener('change', prev); }); prev(); hookHaz(f);
   $('#nsave').onclick = () => {
-    const NF = [{ k: 'name', label: '시약명', req: true }, { k: 'conc', label: '농도', req: true }, { k: 'haz', label: '유해화학물질 여부', req: true },
+    const NF = [{ k: 'name', label: '시약명', req: true }, { k: 'conc', label: '농도' }, { k: 'haz', label: '유해화학물질 여부' },
       { k: 'specNum', label: '규격', req: true }, { k: 'specUnit' }, { k: 'bottles', label: '산 병 수', req: true }, { k: 'kan', label: '보관 위치(칸)', req: true },
       { k: 'date', label: '입고일', req: true }, { k: 'who', label: '담당교사', req: true }].concat(MORE);
     const v = readForm(f, NF);
@@ -855,7 +965,7 @@ function buyNew(preset) {
     if (!(n > 0)) return toast('병 수는 1 이상으로 입력해 주세요.', true);
     if (!sp) return toast('규격을 숫자로 입력해 주세요 (예: 500).', true);
     setWHO(v.who);
-    const reagent = { name: v.name, conc: v.conc, haz: v.haz, spec: v.specNum + ' ' + v.specUnit, kan: v.kan };
+    const reagent = { name: v.name, conc: v.conc, haz: v.haz || '확인 필요', spec: v.specNum + ' ' + v.specUnit, kan: v.kan };
     MORE.forEach(m => { reagent[m.k] = v[m.k]; });
     const pl = placeOf(v.kan), amt = sp.per * n;
     const local = Object.assign({}, reagent, { id: 'new-' + Date.now(), cnt: n, unit: sp.unit, base: 0, stock: amt, inDate: v.date, lastLog: v.date,
@@ -985,7 +1095,7 @@ function viewCheck() {
     ['유효기한 지남', R.filter(r => r.expState === '기한 지남'), 'bad', '유효기한'],
     ['유효기한 90일 이내', R.filter(r => r.expState === '90일 이내'), 'warn', '유효기한'],
     ['유해화학물질(O)', R.filter(r => r.haz === 'O'), 'bad', '유해화학물질'],
-    ['유해 여부 확인 필요', R.filter(r => r.haz === '확인 필요'), 'warn', '확인 필요'],
+    ['유해 여부·농도 확인 필요', R.filter(r => r.haz === '확인 필요' || needConc(r)), 'warn', '확인 필요'],
     ['MSDS 미게시', R.filter(r => !yes(r.msds)), 'warn', 'MSDS 미게시'],
     ['보관 위치 옮기기 권장', R.filter(r => r.check === '옮기기 권장'), 'bad', '옮기기 권장'],
     ['추천 칸 미설정', R.filter(r => r.check === '추천 칸 미설정'), '', null],
