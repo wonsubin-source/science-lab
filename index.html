@@ -151,7 +151,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-F · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-H · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -385,7 +385,7 @@ function planAll(hiCab, clickable, hiKan) {
         let yy = Y + 6;
         col.forEach(x => {
           const h = uh * (x.dbl ? 2 : 1), on = x.kans.some(k => k.id === hiKan);
-          g += '<rect' + (on ? ' class="hi"' : '') + ' x="' + xx + '" y="' + (yy + 2) + '" width="' + cw + '" height="' + (h - 4) + '" rx="5" fill="' + (on ? '#FF5C9E' : '#fff') + '" stroke="#6E6488" stroke-width="1.1"/>';
+          g += '<rect' + (on ? ' class="hi"' : '') + ' x="' + xx + '" y="' + (yy + 2) + '" width="' + cw + '" height="' + (h - 4) + '" rx="5" fill="' + (on ? '#FF5C9E' : '#fff') + '" stroke="' + (on ? '#C81E5B' : '#3A3150') + '" stroke-width="1.5"/>';
           g += textBlock(xx + cw / 2, yy + h / 2, [String(x.n)], 18, on ? '#fff' : '#3A3150');
           yy += h;
         });
@@ -406,36 +406,53 @@ function planAll(hiCab, clickable, hiKan) {
   return '<svg viewBox="0 0 ' + Wpx + ' ' + Hpx + '" role="img" aria-label="과학실, 프로젝트실, 준비실 배치도">' + g + bubble + '</svg>';
 }
 function planSVG(spaceId, hiCab, clickable, hiKan) { return planAll(hiCab, clickable, hiKan); }
-// 기타 사물함: 번호별로 묶기 → [{ n, dbl, kans:[칸], L, R }]  (칸ID 끝이 n, nL, nR)
+// 기타 사물함: 번호별로 묶기 → [{ n, dbl, kans:[칸], sides:[{ s:''|'L'|'R', shelves:[칸…] }] }]
+// 칸ID 끝: n-1(기타n 1칸), nL-2(기타n 왼쪽 2칸) … 예전 형식 n, nL 도 그림이 깨지지 않게 처리
 const ETC_DOUBLE = [1, 3, 5, 8, 10, 12];
 function etcLockers(cabId) {
   const by = {};
   (st.data.kans || []).filter(k => k.cab === cabId).forEach(k => {
-    const m = /-(\d+)([LR]?)$/.exec(String(k.id)); if (!m) return;
-    const n = Number(m[1]), o = by[n] = by[n] || { n: n, kans: [] };
-    o.kans.push(k); if (m[2]) o[m[2]] = k; else o.one = k;
+    const m = /-(\d+)([LR]?)(?:-(\d+))?$/.exec(String(k.id)); if (!m) return;
+    const n = Number(m[1]), o = by[n] = by[n] || { n: n, kans: [], side: {} };
+    o.kans.push(k); (o.side[m[2]] = o.side[m[2]] || []).push(Object.assign({ shelf: Number(m[3] || 0) }, k));
   });
-  return Object.keys(by).map(Number).sort((a, b) => a - b).map(n => Object.assign(by[n], { dbl: !!(by[n].L || by[n].R) || ETC_DOUBLE.indexOf(n) >= 0 }));
+  return Object.keys(by).map(Number).sort((a, b) => a - b).map(n => {
+    const o = by[n], keys = Object.keys(o.side).sort((a, b) => (a === 'R') - (b === 'R'));
+    o.sides = keys.map(k => ({ s: k, shelves: o.side[k].sort((a, b) => a.shelf - b.shelf) }));
+    o.dbl = !!(o.side.L || o.side.R) || ETC_DOUBLE.indexOf(n) >= 0;
+    return o;
+  });
 }
-// 기타 사물함 칸 그림: 위 7~12, 아래 1~6. 양옆 사물함은 왼쪽 | 오른쪽 두 칸
+// 기타 사물함 칸 그림: 위 줄 7~12, 아래 줄 1~6. 사물함마다 위에서부터 1·2·3칸, 양옆 사물함은 왼쪽 | 오른쪽
 function etcFront(cab, hiKan) {
-  const L = etcLockers(cab.id), cw = 70, ch = 40, top = 30;
-  const rows = [L.filter(x => x.n > 6), L.filter(x => x.n <= 6)];
-  const units = Math.max(...rows.map(r => r.reduce((a, x) => a + (x.dbl ? 2 : 1), 0)), 1);
-  const W = units * cw + 16, H = top + rows.length * ch + 12;
-  let g = '<text x="' + (W / 2) + '" y="18" text-anchor="middle" font-family="IBM Plex Sans KR, sans-serif" font-weight="600" font-size="16" fill="#3A3150">' + esc(cab.name || '') + '</text>' +
-    '<rect x="6" y="' + (top - 4) + '" width="' + (W - 12) + '" height="' + (rows.length * ch + 8) + '" rx="10" fill="' + esc((cab.box && cab.box[4]) || '#EDEBF2') + '" stroke="#6E6488" stroke-width="1.5"/>';
-  const cell = (k, x, y, w, label, sub) => {
-    const hi = k && k.id === hiKan;
-    return '<rect' + (hi ? ' class="hi"' : '') + ' x="' + (x + 2) + '" y="' + (y + 2) + '" width="' + (w - 4) + '" height="' + (ch - 4) + '" rx="4" fill="' + (hi ? '#FF5C9E' : '#fff') + '" stroke="#3A3150" stroke-width="' + (hi ? 2.5 : 1.2) + '"/>' +
-      '<text x="' + (x + w / 2) + '" y="' + (y + ch / 2 - (sub ? 6 : 0)) + '" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Sans KR, sans-serif" font-weight="600" font-size="14" fill="' + (hi ? '#fff' : '#3A3150') + '">' + esc(label) + '</text>' +
-      (sub ? '<text x="' + (x + w / 2) + '" y="' + (y + ch / 2 + 9) + '" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Sans KR, sans-serif" font-size="11" fill="' + (hi ? '#fff' : '#6E6488') + '">' + esc(sub) + '</text>' : '');
-  };
-  rows.forEach((row, ri) => {
-    const y = top + ri * ch; let x = 8;
+  const L = etcLockers(cab.id), cw = 64, sh = 28, head = 34, gap = 14, top = 30, LG = 7;
+  const groups = [L.filter(x => x.n > 6), L.filter(x => x.n <= 6)];
+  const rowW = r => r.reduce((a, x) => a + cw * Math.max(x.sides.length, x.dbl ? 2 : 1), 0) + Math.max(r.length - 1, 0) * LG;
+  const shelves = Math.max(1, ...L.map(x => Math.max(...x.sides.map(sd => sd.shelves.length)))), gh = head + shelves * sh + 4;
+  const W = Math.max(...groups.map(rowW), cw) + 20, H = top + groups.length * gh + (groups.length - 1) * gap + 8;
+  const F = 'font-family="IBM Plex Sans KR, sans-serif"';
+  let g = '<text x="' + (W / 2) + '" y="18" text-anchor="middle" ' + F + ' font-weight="600" font-size="16" fill="#3A3150">' + esc(cab.name || '') + '</text>';
+  groups.forEach((row, gi) => {
+    const y0 = top + gi * (gh + gap); let x = 10;
+    g += '<rect x="6" y="' + (y0 - 2) + '" width="' + (W - 12) + '" height="' + (gh + 4) + '" rx="8" fill="' + esc((cab.box && cab.box[4]) || '#EDEBF2') + '" stroke="#6E6488" stroke-width="1.3"/>';
     row.forEach(o => {
-      if (o.L || o.R) { g += cell(o.L, x, y, cw, String(o.n), '왼쪽') + cell(o.R, x + cw, y, cw, String(o.n), '오른쪽'); x += cw * 2; }
-      else { const w = cw * (o.dbl ? 2 : 1); g += cell(o.one || o.kans[0], x, y, w, '기타' + o.n, ''); x += w; }
+      const span = Math.max(o.sides.length, o.dbl ? 2 : 1), sw = cw * span / o.sides.length, two = o.sides.some(sd => sd.s);
+      const onAny = o.kans.some(k => k.id === hiKan);
+      // 사물함 하나하나를 진한 테두리 상자로 구분
+      g += '<rect x="' + x + '" y="' + (y0 + 1) + '" width="' + (cw * span) + '" height="' + (gh - 2) + '" rx="6" fill="#FBFAFE" stroke="' + (onAny ? '#C81E5B' : '#3A3150') + '" stroke-width="' + (onAny ? 2.4 : 1.8) + '"/>';
+      g += '<text x="' + (x + cw * span / 2) + '" y="' + (y0 + (two ? 10 : head / 2)) + '" text-anchor="middle" dominant-baseline="central" ' + F + ' font-weight="700" font-size="13" fill="' + (onAny ? '#C81E5B' : '#3A3150') + '">기타' + o.n + '</text>';
+      o.sides.forEach((sd, si) => {
+        const sx = x + si * sw, on = sd.shelves.some(k => k.id === hiKan);
+        if (sd.s) g += '<text x="' + (sx + sw / 2) + '" y="' + (y0 + 25) + '" text-anchor="middle" dominant-baseline="central" ' + F + ' font-weight="' + (on ? 700 : 500) + '" font-size="11" fill="' + (on ? '#C81E5B' : '#6E6488') + '">' + (sd.s === 'L' ? '왼쪽' : '오른쪽') + '</text>';
+        const one = sd.shelves.length === 1 && !sd.shelves[0].shelf;
+        sd.shelves.forEach((k, ki) => {
+          const hi = k.id === hiKan, yy = y0 + head + (one ? 0 : ki * sh), hh = one ? shelves * sh : sh;
+          g += '<rect' + (hi ? ' class="hi"' : '') + ' x="' + (sx + 4) + '" y="' + (yy + 1) + '" width="' + (sw - 8) + '" height="' + (hh - 3) + '" rx="4" fill="' + (hi ? '#FF5C9E' : '#fff') + '" stroke="#3A3150" stroke-width="' + (hi ? 2.5 : 1.1) + '"/>' +
+            '<text x="' + (sx + sw / 2) + '" y="' + (yy + hh / 2) + '" text-anchor="middle" dominant-baseline="central" ' + F + ' font-weight="600" font-size="13" fill="' + (hi ? '#fff' : '#3A3150') + '">' + esc(one ? '—' : (hi ? '▶ ' : '') + k.shelf + '칸') + '</text>';
+        });
+        if (si) g += '<line x1="' + sx + '" x2="' + sx + '" y1="' + (y0 + 18) + '" y2="' + (y0 + gh - 2) + '" stroke="#6E6488" stroke-width="1" stroke-dasharray="3 3"/>';
+      });
+      x += cw * span + LG;
     });
   });
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" role="img" aria-label="' + esc(cab.name || '') + ' 칸 그림">' + g + '</svg>';
