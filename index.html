@@ -42,7 +42,7 @@
   .chip{border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:4px 13px;font-size:14px;cursor:pointer;font-family:var(--head);font-weight:500}
   .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
   .chip[data-c="물리"]{background:var(--sky)} .chip[data-c="화학"]{background:var(--butter)} .chip[data-c="생명"]{background:var(--mint)}
-  .chip[data-c="지구"]{background:var(--lav)} .chip[data-c="공통"]{background:var(--peach)} .chip[data-c="학용품"]{background:var(--rose)} .chip[data-c="안전"]{background:#FFD9D9}
+  .chip[data-c="지구"]{background:var(--lav)} .chip[data-c="공통"]{background:var(--peach)} .chip[data-c="학용품"]{background:var(--rose)} .chip[data-c="안전"]{background:#FFD9D9} .chip[data-c="기타"]{background:#E6E3EE}
   .chip[data-c].on{background:var(--ink);color:#fff}
   .hint{color:var(--muted);font-size:14px;margin:4px 2px 12px}
   .list{display:flex;flex-direction:column;gap:10px}
@@ -151,7 +151,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-E · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-F · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -495,7 +495,7 @@ function centerPlans(root) {
 // ───────────────────────── 교구 ─────────────────────────
 function viewItems() {
   const d = st.data, T = st.mode === 'teacher';
-  const cats = ['전체'].concat((d.opt && d.opt.cat) || ['물리','화학','생명','지구','공통','학용품','안전']);
+  const cats = ['전체'].concat((d.opt && d.opt.cat) || ['물리','화학','생명','지구','공통','학용품','안전','기타']);
   $('#main').innerHTML =
 
     (true
