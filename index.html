@@ -80,10 +80,13 @@
   .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;font-size:14.5px;margin:10px 0}
   .kv dt{color:var(--muted)} .kv dd{margin:0}
   .form{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-top:12px}
-  .form label{display:flex;flex-direction:column;font-size:13px;color:var(--muted);gap:4px}
+  .form label{display:block;font-size:13px;color:var(--muted)}
+  .form label > input,.form label > select,.form label > textarea,.form label > span:not(.req){display:block;width:100%;margin-top:4px}
+  .form label > span[style*=flex]{display:flex !important}
   .form label.full{grid-column:1/-1}
   .form input,.form select,.form textarea{border:2px solid var(--line);border-radius:12px;padding:9px 10px;background:#fff;font-size:15px;color:var(--ink)}
-  .form .chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink);font-size:15px}
+  .form .chk{display:flex;flex-direction:row;align-items:center;gap:8px;color:var(--ink);font-size:15px}
+  .form .chk > input{width:auto;margin:0}
   @media(max-width:520px){.form{grid-template-columns:1fr}}
   .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
   .btn{border:1.5px solid #CFC5EE;background:var(--card);border-radius:10px;padding:9px 16px;cursor:pointer;font-family:var(--head);font-weight:600;font-size:15px}
@@ -114,7 +117,8 @@
   .planbox{overflow-x:auto;border:1.5px solid #CFC5EE;border-radius:14px;background:#fff;margin-top:8px;-webkit-overflow-scrolling:touch}
   .planbox svg{display:block;min-width:540px;width:100%;height:auto}
   .planbox.fit svg{min-width:0}
-  .room .planbox.fit{max-width:620px} .room .legend{max-width:620px}
+  .planbox.wide svg{min-width:860px}
+  @media(min-width:900px){.planbox.wide svg{min-width:0}}
   .legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin:8px 4px 0;font-size:13px;color:var(--muted)}
   .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid rgba(58,49,80,.45);vertical-align:-1px;margin-right:4px}
   .cabsvg{margin-top:8px;overflow-x:auto} .cabsvg svg{display:block;margin:0 auto;max-width:100%;height:auto}
@@ -124,6 +128,20 @@
   @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}} .bob{animation:bob 1.2s ease-in-out infinite}
   @media (prefers-reduced-motion: reduce){.hi,.bob{animation:none}}
   .plan-cab{cursor:pointer} .plan-cab:hover rect{stroke:#7B5CFA}
+  .req{color:#E5484D;font-weight:700;margin-left:2px}
+  .form label.miss input,.form label.miss select,.form label.miss textarea{border-color:#E5484D;background:#FFF5F5}
+  .form .reqnote{grid-column:1/-1;font-size:13px;color:var(--muted);margin:-4px 0 2px}
+  .auto{grid-column:1/-1;background:#F4F1FF;border-radius:12px;padding:10px 12px;font-size:13.5px;color:#45338F}
+  .auto b{color:var(--ink)}
+  .tbtn{display:inline-block;background:var(--violet);color:#fff !important;text-decoration:none;font-weight:700;font-size:15px;padding:9px 18px;border-radius:12px;box-shadow:0 2px 8px rgba(123,92,250,.3)}
+  .choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .choice button{border:1.5px solid #CFC5EE;background:#fff;border-radius:14px;padding:16px 12px;text-align:left;cursor:pointer}
+  .choice button:hover{border-color:var(--violet)}
+  .choice b{display:block;font-size:16.5px;margin-bottom:4px} .choice span{font-size:13px;color:var(--muted)}
+  @media(max-width:520px){.choice{grid-template-columns:1fr}}
+  details.more{grid-column:1/-1;border:1px dashed #CFC5EE;border-radius:12px;padding:8px 12px}
+  details.more summary{cursor:pointer;color:var(--violet);font-weight:600;font-size:14px}
+  details.more .form{margin-top:8px}
   .pending{opacity:.62} tr.pending td{color:var(--muted)}
 </style>
 </head>
@@ -133,7 +151,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.07-H · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-A · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -205,8 +223,17 @@ function saveCache(d) { if (!HOSTED) return; try { localStorage.setItem('sci_pub
 let syncing = false;
 function startSync() {
   if (syncing) return; syncing = true;
-  setInterval(poll, 15000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+  // 화면을 보고 있을 때는 자주(교사 4초, 학생 8초), 3분 넘게 손대지 않으면 30초마다 확인
+  let last = Date.now();
+  ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { last = Date.now(); }, { passive: true }));
+  const tick = () => {
+    const idle = Date.now() - last > 180000;
+    const ms = idle ? 30000 : (st.mode === 'teacher' ? 4000 : 8000);
+    poll(); setTimeout(tick, ms);
+  };
+  setTimeout(tick, st.mode === 'teacher' ? 4000 : 8000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { last = Date.now(); poll(); } });
+  window.addEventListener('focus', () => { last = Date.now(); poll(); });
 }
 // 저장 요청을 보내고, 화면은 이미 바뀐 상태로 둔다. 실패하면 되돌린다.
 function save(fn, arg, onOk, onFail) {
@@ -267,8 +294,8 @@ function render() {
   const sv = document.getElementById('srvver'); if (sv) sv.textContent = ' · 서버 ' + (d.code || '예전 버전(Code.gs를 바꿔 주세요)');
   $('#top').innerHTML = '<div><h1>' + FLASK + '과학실 교구 검색</h1><div class="sub">' + esc([d.school, T ? '교사용' : ''].filter(Boolean).join(' · ')) + '</div></div>' +
     (T ? '<div class="who">' + esc(d.me) + '<br><a href="' + esc(d.sheetUrl) + '" target="_blank">구글 시트 열기</a></div>'
-       : (HOSTED && window.TEACHER_URL ? '<div class="who"><a href="' + esc(window.TEACHER_URL) + '">선생님용</a></div>' : ''));
-  const tabs = T ? [['items','교구'],['rg','시약'],['log','출납 기록'],['waste','폐수·폐시약'],['check','점검']] : [];
+       : ((HOSTED && window.TEACHER_URL) || d.teacherUrl ? '<div class="who"><a class="tbtn" href="' + esc((HOSTED && window.TEACHER_URL) || d.teacherUrl) + '">교사용</a></div>' : ''));
+  const tabs = T ? [['items','교구'],['rg','시약'],['log','사용·폐기 기록'],['waste','폐수·폐시약'],['check','점검']] : [];
   $('#tabs').innerHTML = tabs.map(([k, l]) => '<button class="tab' + (st.tab === k ? ' on' : '') + '" data-tab="' + k + '">' + l + '</button>').join('');
   $('#tabs').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { st.tab = b.dataset.tab; render(); });
   const v = { items: viewItems, rg: viewRg, log: viewLog, waste: viewWaste, check: viewCheck }[T ? st.tab : 'items'];
@@ -295,80 +322,86 @@ function legendFor(cabs) {
   return '<div class="legend">' + Object.keys(seen).map(k => { const [col, n] = k.split('|'); return '<span><i style="background:' + esc(col) + '"></i>' + esc(n) + '</span>'; }).join('') + '</div>';
 }
 // 방 하나를 (ox, oy) 위치에 그림. 반환: { g, bubble }
-function roomG(spaceId, ox, oy, hiCab, clickable, hiKan) {
-  const d = st.data, cabs = d.cabs.filter(c => c.space === spaceId && c.box);
-  let g = '', bubble = '';
-  cabs.forEach(c => {
-    const [x, y, w, h] = c.box, col = c.box[4] || famColor(c.name), X = (x + ox) * U + 2, Y = (y + oy) * U + 2, ww = w * U - 4, hh = h * U - 4, hi = c.id === hiCab;
-    g += '<g class="' + (clickable ? 'plan-cab' : '') + '" data-pcab="' + esc(c.id) + '"' + (clickable ? ' role="button" tabindex="0" aria-label="' + esc(c.name) + '"' : '') + '>' +
-      '<rect' + (hi ? ' class="hi"' : '') + ' x="' + X + '" y="' + Y + '" width="' + ww + '" height="' + hh + '" rx="9" fill="' + (hi ? '#FF5C9E' : (col || '#EDEBF2')) + '" stroke="' + (hi ? '#C81E5B' : '#6E6488') + '" stroke-width="' + (hi ? 3 : 1.3) + '"/>';
-    if (c.id.indexOf('ETC') >= 0) {
-      const kans = (d.kans || []).filter(k => k.cab === c.id);
-      const num = k => Number(String(k.id).split('-').pop()) || 0;
-      const top = kans.filter(k => num(k) > 6).sort((a, b) => num(a) - num(b)), bot = kans.filter(k => num(k) <= 6).sort((a, b) => num(a) - num(b));
-      const cw = (ww - 12) / 6, ch = hh * 0.3;
-      [[top, Y + 6], [bot, Y + hh - ch - 6]].forEach(([row, yy]) => row.forEach((k, i) => {
-        const on = k.id === hiKan, xx = X + 6 + i * cw;
-        g += '<rect' + (on ? ' class="hi"' : '') + ' x="' + (xx + 2) + '" y="' + yy + '" width="' + (cw - 4) + '" height="' + ch + '" rx="6" fill="' + (on ? '#FF5C9E' : '#FFFFFF') + '" stroke="#6E6488" stroke-width="1.2"/>' +
-          '<text x="' + (xx + cw / 2) + '" y="' + (yy + ch / 2) + '" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Sans KR, sans-serif" font-weight="600" font-size="17" fill="' + (on ? '#fff' : '#3A3150') + '">' + num(k) + '</text>';
-      }));
-      g += '<text x="' + (X + ww / 2) + '" y="' + (Y + hh / 2) + '" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Sans KR, sans-serif" font-weight="600" font-size="19" fill="' + (hi ? '#fff' : '#3A3150') + '">기타 사물함</text>';
-    } else {
-      const lines = cabLines(c.name), fs = Math.min(21, Math.floor((ww - 6) / Math.max(...lines.map(l => l.length)))), lh = fs + 3;
-      const y0 = Y + hh / 2 - (lines.length - 1) * lh / 2;
-      g += '<text text-anchor="middle" font-family="IBM Plex Sans KR, sans-serif" font-weight="600" font-size="' + fs + '" fill="' + (hi ? '#fff' : '#3A3150') + '">' +
-        lines.map((l, i) => '<tspan x="' + (X + ww / 2) + '" y="' + (y0 + i * lh) + '" dominant-baseline="central">' + esc(l) + '</tspan>').join('') + '</text>';
-    }
-    g += '</g>';
-    if (hi) {
-      const bx = X + ww / 2, above = Y - oy * U > 40, by = above ? Y - 10 : Y + hh + 10;
-      bubble = '<g><rect x="' + (bx - 34) + '" y="' + (above ? by - 30 : by) + '" width="68" height="30" rx="15" fill="#3A3150"/>' +
-        '<path d="M' + (bx - 7) + ' ' + by + ' L' + bx + ' ' + (above ? by + 8 : by - 8) + ' L' + (bx + 7) + ' ' + by + 'Z" fill="#3A3150"/>' +
-        '<text x="' + bx + '" y="' + (above ? by - 15 : by + 15) + '" text-anchor="middle" dominant-baseline="central" font-family="IBM Plex Sans KR, sans-serif" font-weight="700" font-size="17" fill="#fff">여기!</text></g>';
-    }
-  });
-  return { g: g, bubble: bubble };
+// ── 배치도: 원본 표(세로로 쌓인 방)를 시계 방향으로 90° 돌려 가로로 그림 → 왼쪽부터 과학실·프로젝트실·준비실 ──
+const PLAN_FONT = 'IBM Plex Sans KR, sans-serif';
+function fitLines(name, ww, hh) {
+  name = String(name || '').replace('운동과 에너지', '운동·에너지');
+  let lines = [name], fs = Math.min(22, (ww - 10) / Math.max(1, name.length) * 1.05, hh * 0.52);
+  if (fs < 12) {   // 한 줄로 작으면 "이름 / 번호" 두 줄
+    const m = name.match(/^(.*?)\s*(\d+)$/);
+    lines = m ? [m[1], m[2]] : name.split(' ');
+    fs = Math.min(20, (ww - 8) / Math.max(...lines.map(l => l.length)) * 1.05, (hh - 6) / (lines.length * 1.2));
+  }
+  return { lines: lines, fs: Math.max(10, Math.floor(fs)) };
 }
-// 준비실·프로젝트실·과학실을 문으로 이어진 하나의 배치도로 그림
+function textBlock(cx, cy, lines, fs, color, weight) {
+  const lh = fs * 1.2, y0 = cy - (lines.length - 1) * lh / 2;
+  return '<text text-anchor="middle" font-family="' + PLAN_FONT + '" font-weight="' + (weight || 600) + '" font-size="' + fs + '" fill="' + color + '">' +
+    lines.map((l, i) => '<tspan x="' + cx + '" y="' + (y0 + i * lh) + '" dominant-baseline="central">' + esc(l) + '</tspan>').join('') + '</text>';
+}
 function planAll(hiCab, clickable, hiKan) {
-  const d = st.data, WALL = 0.22;
+  const d = st.data, WALL = 0.22, HEAD = 40;   // HEAD: 위쪽 방 이름 줄(px)
   const sizeOf = s => s.size || [Math.max(...d.cabs.filter(c => c.space === s.id && c.box).map(c => c.box[0] + c.box[2])), Math.max(...d.cabs.filter(c => c.space === s.id && c.box).map(c => c.box[1] + c.box[3]))];
   const order = (d.roomOrder || ['PREP', 'PROJ', 'LAB']).map(id => d.spaces.find(s => s.id === id)).filter(s => s && d.cabs.some(c => c.space === s.id && c.box))
     .map(s => Object.assign({}, s, { size: sizeOf(s) }));
   if (!order.length) return '';
+  // 1) 원본 방향(세로 쌓기) 좌표 계산 — 단위: 칸
   const width = Math.max(...order.map(s => s.size[0]));
-  let y = WALL + PAD, g = '', bubbles = '', walls = [], labels = '';
-  const top = {};
-  order.forEach((s, i) => {
-    top[s.id] = y;
-    labels += '<text x="' + ((2.45 + PAD + WALL) * U) + '" y="' + (y * U + 24) + '" font-family="IBM Plex Sans KR, sans-serif" font-weight="700" font-size="20" fill="#7B5CFA">' + esc(s.name) + '</text>';
-    const r = roomG(s.id, PAD + WALL, y, hiCab, clickable, hiKan); g += r.g; bubbles += r.bubble;
-    y += s.size[1] + PAD;
-    if (i < order.length - 1) { walls.push({ y: y, up: s.id, down: order[i + 1].id }); y += WALL + PAD; }
-  });
-  const Wpx = (width + PAD * 2 + WALL * 2) * U, Hpx = (y + WALL) * U, t = WALL * U;
-  let w = '<rect x="' + (t / 2) + '" y="' + (t / 2) + '" width="' + (Wpx - t) + '" height="' + (Hpx - t) + '" rx="6" fill="#fff" stroke="#3A3150" stroke-width="' + t + '"/>';
+  let y = WALL + PAD; const top = {}, walls = [];
+  order.forEach((s, i) => { top[s.id] = y; y += s.size[1] + PAD; if (i < order.length - 1) { walls.push({ y: y, up: s.id, down: order[i + 1].id }); y += WALL + PAD; } });
+  const Ht = y + WALL, Wt = width + PAD * 2 + WALL * 2, ox = PAD + WALL;
+  // 2) 시계 방향 90° 회전: (x, y, w, h) → (Ht - y - h, x, h, w)
+  const R = (x, yy, w, hh) => [(Ht - yy - hh) * U, x * U + HEAD, hh * U, w * U];
+  const Wpx = Ht * U, Hpx = Wt * U + HEAD, t = WALL * U;
+  let g = '<rect x="0" y="0" width="' + Wpx + '" height="' + Hpx + '" fill="#fff"/>' +
+    '<defs><pattern id="gpAll" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" fill="none" stroke="#F2EFFB" stroke-width="1"/></pattern></defs>' +
+    '<rect x="' + t + '" y="' + (HEAD + t) + '" width="' + (Wpx - 2 * t) + '" height="' + (Hpx - HEAD - 2 * t) + '" fill="url(#gpAll)"/>';
+  // 방 이름(배치도 위쪽)
+  order.forEach(s => { const [rx, , rw] = R(0, top[s.id], 1, s.size[1]); g += textBlock(rx + rw / 2, HEAD / 2 + 2, [s.name], 24, '#7B5CFA', 700); });
+  // 벽: 바깥 테두리 + 방 사이 세로 벽(문 자리는 비움)
+  g += '<rect x="' + (t / 2) + '" y="' + (HEAD + t / 2) + '" width="' + (Wpx - t) + '" height="' + (Hpx - HEAD - t) + '" rx="6" fill="none" stroke="#3A3150" stroke-width="' + t + '"/>';
   walls.forEach(wl => {
+    const xx = (Ht - wl.y - WALL / 2) * U;
     const door = (d.doors || [['PREP', 'PROJ', 1.136, 1.136], ['PROJ', 'LAB', 1.136, 1.136]]).find(o => o[0] === wl.up && o[1] === wl.down);
-    const yy = (wl.y + WALL / 2) * U;
-    if (!door) { w += '<line x1="0" x2="' + Wpx + '" y1="' + yy + '" y2="' + yy + '" stroke="#3A3150" stroke-width="' + t + '"/>'; return; }
-    const dx0 = (door[2] + PAD + WALL) * U, dx1 = dx0 + door[3] * U;
-    w += '<line x1="0" x2="' + dx0 + '" y1="' + yy + '" y2="' + yy + '" stroke="#3A3150" stroke-width="' + t + '"/>' +
-      '<line x1="' + dx1 + '" x2="' + Wpx + '" y1="' + yy + '" y2="' + yy + '" stroke="#3A3150" stroke-width="' + t + '"/>';
+    if (!door) { g += '<line x1="' + xx + '" x2="' + xx + '" y1="' + HEAD + '" y2="' + Hpx + '" stroke="#3A3150" stroke-width="' + t + '"/>'; return; }
+    const g0 = (door[2] + ox) * U + HEAD, g1 = g0 + door[3] * U;
+    g += '<line x1="' + xx + '" x2="' + xx + '" y1="' + HEAD + '" y2="' + g0 + '" stroke="#3A3150" stroke-width="' + t + '"/>' +
+      '<line x1="' + xx + '" x2="' + xx + '" y1="' + g1 + '" y2="' + Hpx + '" stroke="#3A3150" stroke-width="' + t + '"/>';
   });
-  const grid = '<defs><pattern id="gpAll" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" fill="none" stroke="#F2EFFB" stroke-width="1"/></pattern></defs>' +
-    '<rect x="' + t + '" y="' + t + '" width="' + (Wpx - 2 * t) + '" height="' + (Hpx - 2 * t) + '" fill="url(#gpAll)"/>';
-  const bg = '<rect x="0" y="0" width="' + Wpx + '" height="' + Hpx + '" rx="6" fill="#fff"/>';
-  return '<svg viewBox="0 0 ' + Wpx + ' ' + Hpx + '" role="img" aria-label="준비실, 프로젝트실, 과학실 배치도">' + bg + grid + w.replace('fill="#fff" stroke', 'fill="none" stroke') + labels + g + bubbles + '</svg>';
+  // 사물함
+  let bubble = '';
+  order.forEach(s => d.cabs.filter(c => c.space === s.id && c.box).forEach(c => {
+    const col = c.box[4] || famColor(c.name), hi = c.id === hiCab;
+    const [X0, Y0, W0, H0] = R(c.box[0] + ox, c.box[1] + top[s.id], c.box[2], c.box[3]);
+    const X = X0 + 2, Y = Y0 + 2, ww = W0 - 4, hh = H0 - 4;
+    g += '<g class="' + (clickable ? 'plan-cab' : '') + '" data-pcab="' + esc(c.id) + '"' + (clickable ? ' role="button" tabindex="0" aria-label="' + esc(c.name) + '"' : '') + '>' +
+      '<rect' + (hi ? ' class="hi"' : '') + ' x="' + X + '" y="' + Y + '" width="' + ww + '" height="' + hh + '" rx="8" fill="' + (hi ? '#FF5C9E' : col) + '" stroke="' + (hi ? '#C81E5B' : '#6E6488') + '" stroke-width="' + (hi ? 3 : 1.3) + '"/>';
+    if (c.id.indexOf('ETC') >= 0) {
+      // 원본: 위쪽 7~12 / 아래쪽 1~6  →  회전 후: 오른쪽 7~12 / 왼쪽 1~6 (위에서 아래로)
+      const kans = (d.kans || []).filter(k => k.cab === c.id), num = k => Number(String(k.id).split('-').pop()) || 0;
+      const right = kans.filter(k => num(k) > 6).sort((a, b) => num(a) - num(b)), left = kans.filter(k => num(k) <= 6).sort((a, b) => num(a) - num(b));
+      const cw = ww * 0.3, ch = (hh - 12) / 6;
+      [[left, X + 5], [right, X + ww - cw - 5]].forEach(([colKans, xx]) => colKans.forEach((k, i) => {
+        const on = k.id === hiKan, yy = Y + 6 + i * ch;
+        g += '<rect' + (on ? ' class="hi"' : '') + ' x="' + xx + '" y="' + (yy + 2) + '" width="' + cw + '" height="' + (ch - 4) + '" rx="5" fill="' + (on ? '#FF5C9E' : '#fff') + '" stroke="#6E6488" stroke-width="1.1"/>' +
+          textBlock(xx + cw / 2, yy + ch / 2, [String(num(k))], 18, on ? '#fff' : '#3A3150');
+      }));
+      g += textBlock(X + ww / 2, Y + hh / 2, ['기타', '사물함'], 16, hi ? '#fff' : '#3A3150');
+    } else {
+      const f = fitLines(c.name, ww, hh);
+      g += textBlock(X + ww / 2, Y + hh / 2, f.lines, f.fs, hi ? '#fff' : '#3A3150');
+    }
+    g += '</g>';
+    if (hi) {
+      const bx = X + ww / 2, above = Y - HEAD > 46, by = above ? Y - 10 : Y + hh + 10;
+      bubble = '<g><rect x="' + (bx - 34) + '" y="' + (above ? by - 30 : by) + '" width="68" height="30" rx="15" fill="#3A3150"/>' +
+        '<path d="M' + (bx - 7) + ' ' + by + ' L' + bx + ' ' + (above ? by + 8 : by - 8) + ' L' + (bx + 7) + ' ' + by + 'Z" fill="#3A3150"/>' +
+        textBlock(bx, above ? by - 15 : by + 15, ['여기!'], 16, '#fff', 700) + '</g>';
+    }
+  }));
+  return '<svg viewBox="0 0 ' + Wpx + ' ' + Hpx + '" role="img" aria-label="과학실, 프로젝트실, 준비실 배치도">' + g + bubble + '</svg>';
 }
-// (예전 방식) 방 하나만 그리기
-function planSVG(spaceId, hiCab, clickable, hiKan) {
-  const d = st.data, sp = d.spaces.find(s => s.id === spaceId) || {}, cabs = d.cabs.filter(c => c.space === spaceId && c.box);
-  if (!cabs.length) return '';
-  const size = sp.size || [Math.max(...cabs.map(c => c.box[0] + c.box[2])), Math.max(...cabs.map(c => c.box[1] + c.box[3]))];
-  const W = (size[0] + PAD * 2) * U, H = (size[1] + PAD * 2) * U, r = roomG(spaceId, PAD, PAD, hiCab, clickable, hiKan);
-  return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(sp.name || '') + ' 배치도">' + r.g + r.bubble + '</svg>';
-}
+function planSVG(spaceId, hiCab, clickable, hiKan) { return planAll(hiCab, clickable, hiKan); }
 function cabSVG(cabId, hiKan) {
   const d = st.data, cab = d.cabs.find(c => c.id === cabId) || {};
   const kans = (d.kans || []).filter(k => k.cab === cabId).map(k => Object.assign({ code: k.id.slice(cabId.length + 1) }, k));
@@ -407,7 +440,7 @@ function cabSVG(cabId, hiKan) {
 function whereBlock(kanId, cabId, spaceId) {
   const d = st.data, sp = d.spaces.find(s => s.id === spaceId) || {};
   const plan = planAll(cabId, false, kanId), front = cabId ? cabSVG(cabId, kanId) : '';
-  return (plan ? '<div class="sec">배치도에서 위치</div><div class="planbox fit">' + plan + '</div>' : '') +
+  return (plan ? '<div class="sec">배치도에서 위치 <span class="swipe">옆으로 밀어 볼 수 있어요</span></div><div class="planbox wide" data-scrollto="' + esc(cabId) + '">' + plan + '</div>' : '') +
     (front ? '<div class="sec">사물함 안 칸 위치</div><div class="cabsvg">' + front + '</div>' : '') +
     (sp.plan ? '<div class="sec">평면도 사진</div><img class="plan" src="' + esc(sp.plan) + '" alt="' + esc(sp.name) + ' 평면도 사진">' : '');
 }
@@ -425,11 +458,12 @@ function viewItems() {
   const d = st.data, T = st.mode === 'teacher';
   const cats = ['전체'].concat((d.opt && d.opt.cat) || ['물리','화학','생명','지구','공통','학용품','안전']);
   $('#main').innerHTML =
-    (T ? '<div class="bar"><span class="note">교구 ' + d.items.length + '개</span><button class="btn pri" id="newItem">+ 새 교구</button></div>' : '') +
+
     (true
       ? '<div class="search"><input id="q" type="text" enterkeyhint="search" placeholder="교구 이름 검색 (예: 비커, 초성 ㅂㅋ)" value="' + esc(st.q) + '" autocomplete="off"><button class="x" id="qx" aria-label="지우기">×</button></div>' +
         '<div class="chips" id="cats">' + cats.map(c => '<button class="chip' + (st.cat === c ? ' on' : '') + '" data-c="' + c + '">' + c + '</button>').join('') + '</div>' +
-        '<div id="res"></div>'
+        '<div id="res"></div>' +
+        (T ? '<div class="bar" style="margin-top:14px"><span class="note">교구 ' + d.items.length + '개 · 교구를 누르면 수정할 수 있어요</span><button class="btn pri" id="newItem">+ 새 교구</button></div>' : '')
       : '<div id="cabs"></div>');
   document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { st.view = b.dataset.v; viewItems(); });
   if (T) $('#newItem').onclick = () => itemForm(null);
@@ -450,7 +484,7 @@ function drawItems() {
     const ORDER = ['PREP', 'PROJ', 'LAB'], rank = s => { const i = ORDER.indexOf(s.id); return i < 0 ? 99 : i; };
     const rooms = d.spaces.filter(s => d.cabs.some(c => c.space === s.id && c.box)).sort((a, b) => rank(a) - rank(b));
     box.innerHTML = '<p class="hint">사물함을 누르면 안에 든 교구가 보여요. 이름이나 초성(ㅂㅋ → 비커)으로 찾아도 돼요.</p>' +
-      (rooms.length ? '<div class="room"><h3>우리 과학실 배치도</h3><div class="planbox fit">' + planAll('', true) + '</div>' + legendFor(d.cabs.filter(c => c.box)) + '</div>' : '') +
+      (rooms.length ? '<div class="room"><h3>우리 과학실 배치도 <span class="swipe">옆으로 밀어 볼 수 있어요</span></h3><div class="planbox wide">' + planAll('', true) + '</div>' + legendFor(d.cabs.filter(c => c.box)) + '</div>' : '') +
       (rooms.length ? '' : itemCards(list.slice(0, 30)));
     box.querySelectorAll('[data-pcab]').forEach(g => { g.onclick = () => cabDetail(g.dataset.pcab); g.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cabDetail(g.dataset.pcab); } }; });
     return;
@@ -548,13 +582,26 @@ function kanSelect(name, val) {
 }
 function field(f, v) {
   v = v == null ? '' : v;
-  const cls = f.full ? ' class="full"' : '';
+  const cls = ' class="' + (f.full ? 'full' : '') + '" data-f="' + f.k + '"';
+  f = Object.assign({}, f, { label: f.label + (f.req ? '<span class="req">*</span>' : '') });
   if (f.type === 'kan') return '<label' + cls + '>' + f.label + kanSelect(f.k, v) + '</label>';
   if (f.type === 'select') return '<label' + cls + '>' + f.label + '<select name="' + f.k + '"><option value=""></option>' + f.opts.map(o => '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select></label>';
-  if (f.type === 'check') return '<label class="chk' + (f.full ? ' full' : '') + '"><input type="checkbox" name="' + f.k + '"' + (v === true || v === 'TRUE' ? ' checked' : '') + '>' + f.label + '</label>';
-  if (f.type === 'area') return '<label class="full">' + f.label + '<textarea name="' + f.k + '" rows="2">' + esc(v) + '</textarea></label>';
+  if (f.type === 'check') return '<label data-f="' + f.k + '" class="chk' + (f.full ? ' full' : '') + '"><input type="checkbox" name="' + f.k + '"' + (v === true || v === 'TRUE' ? ' checked' : '') + '>' + f.label + '</label>';
+  if (f.type === 'area') return '<label class="full" data-f="' + f.k + '">' + f.label + '<textarea name="' + f.k + '" rows="2">' + esc(v) + '</textarea></label>';
   return '<label' + cls + '>' + f.label + '<input name="' + f.k + '" type="' + (f.type || 'text') + '"' + (f.type === 'number' ? ' step="any" inputmode="decimal"' : '') + ' value="' + esc(v) + '"' + (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + '></label>';
 }
+// 빨간 * 칸이 비었는지 확인하고, 빈 칸을 빨갛게 표시
+function checkReq(root, fields, o) {
+  root.querySelectorAll('label.miss').forEach(l => l.classList.remove('miss'));
+  if (!root._missBound) { root._missBound = true; const clear = e => { const l = e.target.closest && e.target.closest('label.miss'); if (l) l.classList.remove('miss'); }; root.addEventListener('input', clear); root.addEventListener('change', clear); }
+  const miss = fields.filter(f => f.req && (o[f.k] === '' || o[f.k] == null));
+  miss.forEach(f => { const l = root.querySelector('[data-f="' + f.k + '"]'); if (l) l.classList.add('miss'); });
+  if (miss.length) { toast('빨간 * 칸을 채워 주세요: ' + miss.map(f => f.label.replace(/<[^>]+>/g, '')).join(', '), true); const l = root.querySelector('label.miss input, label.miss select'); if (l) l.focus(); }
+  return !miss.length;
+}
+const REQNOTE = '<div class="reqnote"><span class="req">*</span> 표시는 꼭 입력해야 해요.</div>';
+const WHO = () => { try { return localStorage.getItem('sci_who') || ''; } catch (e) { return ''; } };
+const setWHO = v => { try { if (v) localStorage.setItem('sci_who', v); } catch (e) {} };
 function readForm(root, fields) {
   const o = {};
   fields.forEach(f => { const el = root.querySelector('[name="' + f.k + '"]'); if (!el) return; o[f.k] = f.type === 'check' ? el.checked : el.value.trim(); });
@@ -564,16 +611,16 @@ function busy(btn, on) { btn.disabled = on; btn.dataset.t = btn.dataset.t || btn
 
 function itemForm(it, preset) {
   const o = st.data.opt;
-  const F = [{ k: 'name', label: '교구명', full: true }, { k: 'kw', label: '검색어 (다른 이름, 쉼표로 구분)', full: true, ph: '예: 돋보기, 확대경' },
-    { k: 'cat', label: '분류', type: 'select', opts: o.cat }, { k: 'state', label: '상태', type: 'select', opts: o.state },
-    { k: 'kan', label: '위치(칸)', type: 'kan', full: true }, { k: 'qty', label: '수량', type: 'number' }, { k: 'unit', label: '단위', ph: '개, 대, 세트' },
+  const F = [{ k: 'name', label: '교구명', full: true, req: true }, { k: 'kw', label: '검색어 (다른 이름, 쉼표로 구분)', full: true, ph: '예: 돋보기, 확대경' },
+    { k: 'cat', label: '분류', type: 'select', opts: o.cat, req: true }, { k: 'state', label: '상태', type: 'select', opts: o.state, req: true },
+    { k: 'kan', label: '위치(칸)', type: 'kan', full: true, req: true }, { k: 'qty', label: '수량', type: 'number', req: true }, { k: 'unit', label: '단위', ph: '개, 대, 세트' },
     { k: 'photo', label: '사진 링크 (드라이브 공유 링크)', full: true }, { k: 'note', label: '비고', type: 'area' }];
   const v = preset || (it ? { name: it.name, kw: it.kw, cat: it.cat, state: it.state, kan: it.kan, qty: it.qty, unit: it.unit, photo: it.photoRaw, note: it.note } : { state: '정상', unit: '개' });
   openModal('<h2>' + (it ? '교구 수정' : '새 교구') + '</h2>' + (it ? '<div class="note">' + esc(it.id) + '</div>' : '') +
-    '<div class="form" id="f">' + F.map(f => field(f, v[f.k])).join('') + '</div><div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
+    '<div class="form" id="f">' + REQNOTE + F.map(f => field(f, v[f.k])).join('') + '</div><div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
   $('#save').onclick = () => {
     const obj = readForm($('#f'), F); if (it) obj.id = it.id;
-    if (!obj.name) return toast('교구명을 입력해 주세요.', true);
+    if (!checkReq($('#f'), F, obj)) return;
     const items = st.data.items, snap = it ? JSON.parse(JSON.stringify(it)) : null;
     const local = Object.assign({}, it || {}, obj, placeOf(obj.kan), { photoRaw: obj.photo, photo: driveImg(obj.photo),
       qty: obj.qty === '' ? '' : Number(obj.qty), id: it ? it.id : 'new-' + Date.now(), _pending: true });
@@ -617,10 +664,10 @@ function rgFilter(r) {
   }
 }
 function viewRg() {
-  $('#main').innerHTML = '<div class="bar"><span class="note">시약 ' + st.data.reagents.length + '종</span><button class="btn pri" id="newRg">+ 새 시약</button></div>' +
+  $('#main').innerHTML = '<div class="bar"><span class="note">시약 ' + st.data.reagents.length + '종 · 시약을 누르면 정보를 보고 고칠 수 있어요</span><button class="btn pri" id="newRg">+ 시약 구입·입고</button></div>' +
     '<div class="search"><input id="rq" type="text" enterkeyhint="search" placeholder="시약 이름, 화학식, CAS번호" value="' + esc(st.rq) + '" autocomplete="off"><button class="x" id="rqx" aria-label="지우기">×</button></div>' +
     '<div class="chips" id="rf">' + RF.map(c => '<button class="chip' + (st.rf === c ? ' on' : '') + '" data-c="' + c + '">' + c + '</button>').join('') + '</div><div id="rres"></div>';
-  $('#newRg').onclick = () => rgForm(null);
+  $('#newRg').onclick = () => buyStart();
   const q = $('#rq'); q.oninput = () => { st.rq = q.value; drawRg(); };
   $('#rqx').onclick = () => { st.rq = ''; q.value = ''; drawRg(); };
   $('#rf').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { st.rf = b.dataset.c; viewRg(); });
@@ -657,28 +704,29 @@ function rgDetail(id) {
     (r.kan ? (() => { const k = (st.data.kans || []).find(x => x.id === r.kan) || {}; const c = st.data.cabs.find(x => x.id === k.cab) || {}; return whereBlock(r.kan, k.cab, c.space); })() : '') +
     (logs.length ? '<p class="note" style="margin-bottom:4px">최근 출납 기록</p><div class="scroll"><table class="mini"><tr><th>날짜</th><th>구분</th><th>수량</th><th>잔량</th><th>담당</th><th>용도</th></tr>' +
       logs.map(l => '<tr><td>' + esc(l.date) + '</td><td>' + esc(l.type) + '</td><td>' + num(l.qty) + '</td><td>' + num(l.after) + '</td><td>' + esc(l.who) + '</td><td>' + esc(l.use) + '</td></tr>').join('') + '</table></div>' : '') +
-    '<div class="btns"><button class="btn" id="toLog">출납 기록하기</button><button class="btn pri" id="editRg">정보 수정</button></div>');
+    '<div class="btns"><button class="btn" id="toBuy">구입·입고</button><button class="btn" id="toLog">사용·폐기 기록</button><button class="btn pri" id="editRg">정보 수정</button></div>');
   $('#editRg').onclick = () => rgForm(r);
   setTimeout(() => centerPlans($('#modal')), 30);
   $('#toLog').onclick = () => { st.logRid = r.id; st.tab = 'log'; closeModal(); render(); };
+  $('#toBuy').onclick = () => buyOld(r.id);
 }
 function rgForm(r, preset) {
   const o = st.data.opt;
-  const F = [{ k: 'name', label: '시약명', full: true, ph: '예: 묽은 염산(10%)' }, { k: 'conc', label: '농도', ph: '예: 10%, 0.1 M' }, { k: 'formula', label: '화학식' },
-    { k: 'cas', label: 'CAS번호' }, { k: 'haz', label: '유해화학물질 여부', type: 'select', opts: o.haz },
-    { k: 'kan', label: '보관 위치(칸)', type: 'kan', full: true }, { k: 'spec', label: '규격 (한 병 용량)', ph: '예: 500 mL' }, { k: 'cnt', label: '개수(병)', type: 'number' },
-    { k: 'unit', label: '관리단위', type: 'select', opts: o.unit }, { k: 'base', label: '기초재고량 (관리단위)', type: 'number' },
+  const F = [{ k: 'name', label: '시약명', full: true, ph: '예: 묽은 염산(10%)', req: true }, { k: 'conc', label: '농도', ph: '예: 10%, 0.1 M', req: true }, { k: 'formula', label: '화학식' },
+    { k: 'cas', label: 'CAS번호' }, { k: 'haz', label: '유해화학물질 여부', type: 'select', opts: o.haz, req: true },
+    { k: 'kan', label: '보관 위치(칸)', type: 'kan', full: true, req: true }, { k: 'spec', label: '규격 (한 병 용량)', ph: '예: 500 mL', req: true }, { k: 'cnt', label: '개수(병)', type: 'number' },
+    { k: 'unit', label: '관리단위', type: 'select', opts: o.unit }, { k: 'base', label: '기초재고량 (처음 등록할 때 남아 있던 양)', type: 'number' },
     { k: 'inDate', label: '입고일', type: 'date' }, { k: 'openDate', label: '개봉일', type: 'date' }, { k: 'exp', label: '유효기한', type: 'date' },
     { k: 'msdsDate', label: 'MSDS 게시일', type: 'date' }, { k: 'msds', label: 'MSDS 게시함', type: 'check' }, { k: 'waste', label: '폐기 예정', type: 'check' },
     { k: 'msdsLink', label: 'MSDS 링크 (판매업체에서 받은 파일)', full: true }, { k: 'msdsVendor', label: 'MSDS 제공업체', full: true }, { k: 'note', label: '비고', type: 'area' }];
   const v = preset || r || { haz: '확인 필요' };
   openModal('<h2>' + (r ? '시약 정보 수정' : '새 시약 등록') + '</h2>' + (r ? '<div class="note">' + esc(r.id) + '</div>' : '<div class="alert ac">저장하면 유해화학물질 기준농도, 분류, 추천 보관 위치가 자동으로 계산돼요.</div>') +
-    '<div class="form" id="f">' + F.map(f => field(f, v[f.k])).join('') + '</div>' +
-    '<p class="note">유해화학물질 여부는 병 라벨의 실제 농도를 [부록9] 기준농도와 비교해 정해 주세요. MSDS는 판매업체에서 받은 것만 유효해요.</p>' +
+    '<div class="form" id="f">' + REQNOTE + F.map(f => field(f, v[f.k])).join('') + '</div>' +
+    '<p class="note">새로 산 병은 여기서 개수를 바꾸지 말고 <b>[+ 시약 구입·입고]</b>로 기록해 주세요. 그래야 출납대장에 입고가 남아요. 유해화학물질 여부는 병 라벨의 실제 농도를 [부록9] 기준농도와 비교해 정해 주세요. MSDS는 판매업체에서 받은 것만 유효해요.</p>' +
     '<div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
   $('#save').onclick = () => {
     const obj = readForm($('#f'), F); if (r) obj.id = r.id;
-    if (!obj.name) return toast('시약명을 입력해 주세요.', true);
+    if (!checkReq($('#f'), F, obj)) return;
     const list = st.data.reagents, snap = r ? JSON.parse(JSON.stringify(r)) : null;
     const pl = placeOf(obj.kan);
     const local = Object.assign({}, r || { recClass: '계산 중…', tox: '계산 중…', check: '', expState: '', lastLog: '' }, obj, {
@@ -698,27 +746,158 @@ function rgForm(r, preset) {
   };
 }
 
+// ───────────────────────── 시약 구입·입고 ─────────────────────────
+// 서버의 parseSpec_와 같은 규칙: "500 mL", "1 L", "1 kg" → 한 병 양(관리단위)
+function specPer(spec) {
+  const m = String(spec || '').replace(/\s+/g, ' ').trim().match(/^([\d.,]+)\s*(mL|ml|ML|L|l|g|kg|KG)$/);
+  if (!m) return null;
+  let v = Number(m[1].replace(/,/g, '')), u = m[2];
+  if (/^ml$/i.test(u)) u = 'mL'; else if (/^l$/i.test(u)) { v *= 1000; u = 'mL'; } else if (/^kg$/i.test(u)) { v *= 1000; u = 'g'; }
+  return isNaN(v) ? null : { per: v, unit: u };
+}
+function buyStart() {
+  openModal('<h2>시약 구입·입고</h2><p class="note">새로 들어온 시약을 기록해요. 시약 목록과 출납대장(입고)이 한 번에 함께 저장돼요.</p>' +
+    '<div class="choice"><button id="bNew"><b>처음 사는 시약</b><span>우리 학교 시약 목록에 없는 시약이에요. 새로 등록하면서 입고를 기록해요.</span></button>' +
+    '<button id="bOld"><b>이미 있는 시약</b><span>목록에 있는 시약을 또 샀어요. 병 수를 늘리고 입고를 기록해요.</span></button></div>');
+  $('#bNew').onclick = () => buyNew();
+  $('#bOld').onclick = () => buyOld('');
+}
+// 이미 있는 시약 다시 구입
+function buyOld(preRid) {
+  const d = st.data;
+  const opts = d.reagents.filter(r => !r._pending).map(r => '<option value="' + esc(r.id) + '"' + (r.id === preRid ? ' selected' : '') + '>' + esc(r.name + (r.spec ? ' · ' + r.spec : '') + ' (' + r.id + ')') + '</option>').join('');
+  openModal('<h2>이미 있는 시약 입고</h2>' +
+    '<div class="search" style="margin:10px 0 4px"><input id="bf" type="text" placeholder="시약 이름으로 목록 좁히기 (예: 염산)" autocomplete="off"></div>' +
+    '<div class="form" id="bo">' + REQNOTE +
+      '<label class="full" data-f="rid">시약<span class="req">*</span><select name="rid" id="brid"><option value="">— 시약 선택 —</option>' + opts + '</select></label>' +
+      '<label data-f="date">입고일<span class="req">*</span><input type="date" name="date" value="' + today() + '"></label>' +
+      '<label data-f="bottles">산 병 수<span class="req">*</span><input type="number" name="bottles" min="1" step="1" inputmode="numeric" value="1"></label>' +
+      '<label data-f="who">담당교사<span class="req">*</span><input name="who" value="' + esc(WHO()) + '" placeholder="이름"></label>' +
+      '<label data-f="use">메모<input name="use" placeholder="예: 2학기 실험용 구입"></label>' +
+      '<div class="auto" id="bprev">시약을 고르면 입고량이 자동으로 계산돼요.</div>' +
+    '</div><div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="bsave">입고 기록하기</button></div>');
+  const f = $('#bo'), sel = $('#brid');
+  $('#bf').oninput = e => { const q = e.target.value; Array.from(sel.options).forEach((op, i) => { if (i) op.hidden = !matches(q, op.textContent); }); };
+  const prev = () => {
+    const r = d.reagents.find(x => x.id === sel.value), n = Number(f.querySelector('[name=bottles]').value) || 0, box = $('#bprev');
+    if (!r) { box.innerHTML = '시약을 고르면 입고량이 자동으로 계산돼요.'; return; }
+    const sp = specPer(r.spec);
+    if (!sp) { box.innerHTML = '⚠ 이 시약은 규격이 "' + esc(r.spec || '비어 있음') + '"이라 입고량을 계산할 수 없어요. 시약 정보에서 규격을 "500 mL"처럼 먼저 고쳐 주세요.'; return; }
+    const amt = sp.per * n;
+    box.innerHTML = '자동으로 채워져요 → 입고량 <b>' + num(amt) + ' ' + sp.unit + '</b> (' + esc(r.spec) + ' × ' + n + '병) · 개수 <b>' + (Number(r.cnt) || 0) + ' → ' + ((Number(r.cnt) || 0) + n) + '병</b>' +
+      (hasStock(r) ? ' · 보유량 <b>' + num(r.stock) + ' → ' + num(Number(r.stock) + amt) + ' ' + esc(r.unit || sp.unit) + '</b>' : '') + ' · 출납대장에 입고 1줄';
+  };
+  sel.onchange = prev; f.querySelector('[name=bottles]').oninput = prev; prev();
+  $('#bsave').onclick = () => {
+    const BF = [{ k: 'rid', label: '시약', req: true }, { k: 'date', label: '입고일', req: true }, { k: 'bottles', label: '산 병 수', req: true }, { k: 'who', label: '담당교사', req: true }, { k: 'use' }];
+    const o = readForm(f, BF);
+    if (!checkReq(f, BF, o)) return;
+    const r = d.reagents.find(x => x.id === o.rid), sp = specPer(r && r.spec), n = Number(o.bottles);
+    if (!sp) return toast('규격을 먼저 고쳐 주세요 (예: 500 mL).', true);
+    if (!(n > 0)) return toast('병 수는 1 이상으로 입력해 주세요.', true);
+    setWHO(o.who);
+    const amt = sp.per * n, snap = { cnt: r.cnt, stock: r.stock, lastLog: r.lastLog, inDate: r.inDate };
+    const log = { date: o.date, label: r.label, rid: r.id, type: '입고', qty: amt, unit: r.unit || sp.unit, who: o.who, use: o.use || '구입', _pending: true };
+    r.cnt = (Number(r.cnt) || 0) + n; r.inDate = o.date; if (hasStock(r)) r.stock = Number(r.stock) + amt; if (!r.lastLog || o.date > r.lastLog) r.lastLog = o.date;
+    d.logs.push(log); closeModal(); rerender();
+    save('receiveReagent', { rid: r.id, date: o.date, bottles: n, who: o.who, use: o.use }, res => {
+      const i = d.logs.indexOf(log); if (i >= 0) d.logs[i] = res.log; else d.logs.push(res.log);
+      const j = d.reagents.indexOf(r); if (j >= 0) d.reagents[j] = res.reagent;
+      rerender(); toast('입고를 기록했어요 · ' + r.name + ' ' + num(res.amount) + ' ' + res.unit);
+    }, e => {
+      const i = d.logs.indexOf(log); if (i >= 0) d.logs.splice(i, 1); Object.assign(r, snap);
+      rerender(); toast('기록하지 못했어요: ' + e.message, true); buyOld(r.id);
+    });
+  };
+}
+// 처음 사는 시약 등록 + 입고
+function buyNew(preset) {
+  const d = st.data, o = d.opt, p = preset || {};
+  const MORE = [{ k: 'formula', label: '화학식' }, { k: 'cas', label: 'CAS번호' }, { k: 'exp', label: '유효기한', type: 'date' }, { k: 'openDate', label: '개봉일', type: 'date' },
+    { k: 'msdsDate', label: 'MSDS 게시일', type: 'date' }, { k: 'msds', label: 'MSDS 게시함', type: 'check' },
+    { k: 'msdsLink', label: 'MSDS 링크 (판매업체에서 받은 파일)', full: true }, { k: 'msdsVendor', label: 'MSDS 제공업체', full: true }, { k: 'note', label: '비고', type: 'area' }];
+  openModal('<h2>처음 사는 시약 등록</h2>' +
+    '<div class="form" id="bn">' + REQNOTE +
+      field({ k: 'name', label: '시약명', full: true, req: true, ph: '예: 수산화 나트륨' }, p.name) +
+      '<div id="dup" class="full" style="grid-column:1/-1"></div>' +
+      field({ k: 'conc', label: '농도', req: true, ph: '예: 1 M, 10%, 분말 99%' }, p.conc) +
+      field({ k: 'haz', label: '유해화학물질 여부', type: 'select', opts: o.haz, req: true }, p.haz) +
+      '<label data-f="specNum">규격 (한 병 용량)<span class="req">*</span><span style="display:flex;gap:6px"><input name="specNum" type="number" step="any" inputmode="decimal" placeholder="500" value="' + esc(p.specNum || '') + '" style="flex:1;min-width:0">' +
+        '<select name="specUnit" style="width:84px">' + ['mL', 'L', 'g', 'kg'].map(u => '<option' + (u === (p.specUnit || 'mL') ? ' selected' : '') + '>' + u + '</option>').join('') + '</select></span></label>' +
+      field({ k: 'bottles', label: '산 병 수', type: 'number', req: true }, p.bottles || 1) +
+      field({ k: 'kan', label: '보관 위치(칸)', type: 'kan', full: true, req: true }, p.kan) +
+      field({ k: 'date', label: '입고일', type: 'date', req: true }, p.date || today()) +
+      field({ k: 'who', label: '담당교사', req: true, ph: '이름' }, p.who || WHO()) +
+      '<div class="auto" id="nprev"></div>' +
+      '<details class="more"><summary>더 입력하기 (선택) — 화학식, CAS, 유효기한, MSDS</summary><div class="form">' + MORE.map(m => field(m, p[m.k])).join('') + '</div></details>' +
+    '</div><p class="note">유해화학물질 여부는 병 라벨의 농도를 [부록9] 기준농도와 비교해 정해 주세요. 모르면 "확인 필요"를 고르세요.</p>' +
+    '<div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="nsave">등록하고 입고 기록하기</button></div>');
+  const f = $('#bn');
+  const prev = () => {
+    const sn = f.querySelector('[name=specNum]').value, su = f.querySelector('[name=specUnit]').value, n = Number(f.querySelector('[name=bottles]').value) || 0;
+    const sp = specPer(sn + ' ' + su), kan = f.querySelector('[name=kan]').value, pl = kan ? placeOf(kan) : null;
+    $('#nprev').innerHTML = '<b>자동으로 채워지는 것</b><br>시약ID(저장할 때) · 관리단위 <b>' + (sp ? sp.unit : '—') + '</b> · 입고량 <b>' + (sp && n ? num(sp.per * n) + ' ' + sp.unit : '—') + '</b>' +
+      ' · 현재 보유량 <b>' + (sp && n ? num(sp.per * n) + ' ' + sp.unit : '—') + '</b>' + (pl ? ' · 위치 <b>' + esc([pl.spaceName, pl.cabName, pl.kanName].join(' › ')) + '</b>' : '') +
+      '<br>출납대장 입고 1줄, 분류·추천 보관 위치·유해화학물질 기준농도는 저장하면 계산돼요.';
+    const nm = norm(f.querySelector('[name=name]').value), same = nm ? d.reagents.filter(r => norm(r.name) === nm) : [];
+    $('#dup').innerHTML = same.length ? '<div class="alert warn" style="margin:0">이미 목록에 있는 시약이에요 (' + same.map(r => esc(r.name + (r.spec ? ' ' + r.spec : '') + ' · ' + r.id)).join(', ') +
+      '). 같은 시약을 또 산 거라면 <button class="btn" id="toOld" style="padding:4px 10px;font-size:13px">이미 있는 시약으로 입고</button></div>' : '';
+    const t = $('#toOld'); if (t) t.onclick = () => buyOld(same[0].id);
+  };
+  f.querySelectorAll('input,select').forEach(el => { el.addEventListener('input', prev); el.addEventListener('change', prev); }); prev();
+  $('#nsave').onclick = () => {
+    const NF = [{ k: 'name', label: '시약명', req: true }, { k: 'conc', label: '농도', req: true }, { k: 'haz', label: '유해화학물질 여부', req: true },
+      { k: 'specNum', label: '규격', req: true }, { k: 'specUnit' }, { k: 'bottles', label: '산 병 수', req: true }, { k: 'kan', label: '보관 위치(칸)', req: true },
+      { k: 'date', label: '입고일', req: true }, { k: 'who', label: '담당교사', req: true }].concat(MORE);
+    const v = readForm(f, NF);
+    if (!checkReq(f, NF, v)) return;
+    const n = Number(v.bottles), sp = specPer(v.specNum + ' ' + v.specUnit);
+    if (!(n > 0)) return toast('병 수는 1 이상으로 입력해 주세요.', true);
+    if (!sp) return toast('규격을 숫자로 입력해 주세요 (예: 500).', true);
+    setWHO(v.who);
+    const reagent = { name: v.name, conc: v.conc, haz: v.haz, spec: v.specNum + ' ' + v.specUnit, kan: v.kan };
+    MORE.forEach(m => { reagent[m.k] = v[m.k]; });
+    const pl = placeOf(v.kan), amt = sp.per * n;
+    const local = Object.assign({}, reagent, { id: 'new-' + Date.now(), cnt: n, unit: sp.unit, base: 0, stock: amt, inDate: v.date, lastLog: v.date,
+      loc: [pl.spaceName, pl.cabName, pl.kanName].join(' › '), recClass: '계산 중…', tox: '계산 중…', check: '', expState: '', _pending: true });
+    const log = { date: v.date, label: local.id + ' · ' + v.name, rid: local.id, type: '입고', qty: amt, unit: sp.unit, who: v.who, use: '구입', _pending: true };
+    d.reagents.push(local); d.logs.push(log); closeModal(); st.rq = ''; st.rf = '전체'; rerender();
+    save('receiveReagent', { reagent: reagent, date: v.date, bottles: n, who: v.who }, res => {
+      const i = d.reagents.indexOf(local); if (i >= 0) d.reagents[i] = res.reagent; else d.reagents.push(res.reagent);
+      const j = d.logs.indexOf(log); if (j >= 0) d.logs[j] = res.log; else d.logs.push(res.log);
+      rerender(); toast('등록하고 입고를 기록했어요 · ' + res.id + ' ' + v.name);
+    }, e => {
+      const i = d.reagents.indexOf(local); if (i >= 0) d.reagents.splice(i, 1);
+      const j = d.logs.indexOf(log); if (j >= 0) d.logs.splice(j, 1);
+      rerender(); toast('저장하지 못했어요: ' + e.message, true); buyNew(v);
+    });
+  };
+}
+
 // ───────────────────────── 출납 ─────────────────────────
 function viewLog() {
   const d = st.data;
   const opts = d.reagents.map(r => '<option value="' + esc(r.id) + '"' + (r.id === st.logRid ? ' selected' : '') + '>' + esc(r.name + (r.spec ? ' ' + r.spec : '') + ' · ' + (r.loc.split(' › ').slice(1).join(' ') || '') + ' (' + r.id + ')') + '</option>').join('');
   const recent = d.logs.slice(-40).reverse();
-  $('#main').innerHTML = '<div class="panel"><h3>출납 기록 추가</h3>' +
+  $('#main').innerHTML = '<div class="alert ac" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><span>새로 산 시약은 여기가 아니라 <b>시약 구입·입고</b>에서 기록해요. 입고 기록은 자동으로 남아요.</span><button class="btn pri" id="goBuy">시약 구입·입고</button></div>' +
+    '<div class="panel"><h3>사용·폐기 기록 추가</h3>' +
     '<div class="search" style="margin:4px 0 8px"><input id="lf" type="text" enterkeyhint="search" placeholder="시약 이름으로 목록 좁히기 (예: 염산)" autocomplete="off"></div>' +
     '<div class="form" id="f">' +
-      '<label class="full">시약<select name="rid" id="rid"><option value="">— 시약 선택 —</option>' + opts + '</select></label>' +
-      '<label>날짜<input type="date" name="date" value="' + today() + '"></label>' +
-      '<label>구분<select name="type"><option>사용</option><option>입고</option><option>폐기</option></select></label>' +
-      '<label><span>수량 <span id="unitL"></span></span><input type="number" name="qty" step="any" inputmode="decimal"></label>' +
-      '<label>담당교사<input name="who" id="who" placeholder="이름"></label>' +
-      '<label class="full">용도<input name="use" placeholder="예: 2학년 3반 산·염기 실험"></label>' +
+      REQNOTE +
+      '<label class="full" data-f="rid">시약<span class="req">*</span><select name="rid" id="rid"><option value="">— 시약 선택 —</option>' + opts + '</select></label>' +
+      '<label data-f="date">날짜<span class="req">*</span><input type="date" name="date" value="' + today() + '"></label>' +
+      '<label data-f="type">구분<span class="req">*</span><select name="type"><option>사용</option><option>폐기</option></select></label>' +
+      '<label data-f="qty">수량<span class="req">*</span> <span id="unitL"></span><input type="number" name="qty" step="any" inputmode="decimal"></label>' +
+      '<label data-f="who">담당교사<span class="req">*</span><input name="who" id="who" placeholder="이름"></label>' +
+      '<label class="full" data-f="use">용도<input name="use" placeholder="예: 2학년 3반 산·염기 실험"></label>' +
     '</div><div id="pre" class="alert ac" style="display:none"></div>' +
     '<div class="btns"><button class="btn pri" id="addLog">기록 추가</button></div></div>' +
     '<div class="panel"><h3>최근 기록</h3>' + (recent.length ? '<div class="scroll"><table class="mini"><tr><th>날짜</th><th>시약</th><th>구분</th><th>수량</th><th>잔량</th><th>담당</th><th>용도</th></tr>' +
       recent.map(l => { const r = d.reagents.find(x => x.id === l.rid) || {}; return '<tr' + (l._pending ? ' class="pending"' : '') + '><td>' + esc(l.date) + '</td><td>' + esc(r.name || l.rid) + pend(l) + '</td><td>' + esc(l.type) + '</td><td>' + num(l.qty) + ' ' + esc(l.unit) + '</td><td>' + num(l.after) + '</td><td>' + esc(l.who) + '</td><td>' + esc(l.use) + '</td></tr>'; }).join('') +
       '</table></div>' : '<p class="note">아직 기록이 없어요.</p>') +
     '<p class="note">법정장부(서식3)는 구글 시트의 "출납대장_출력" 시트에서 약품을 골라 인쇄·서명해 5년간 보관해 주세요.</p></div>';
-  try { const w = localStorage.getItem('sci_who'); if (w) $('#who').value = w; } catch (e) {}
+  if (WHO()) $('#who').value = WHO();
+  $('#goBuy').onclick = () => buyStart();
   const sel = $('#rid'), f = $('#f');
   $('#lf').oninput = e => { const q = e.target.value; Array.from(sel.options).forEach((op, i) => { if (i) op.hidden = !matches(q, op.textContent); }); };
   const upd = () => {
@@ -734,9 +913,10 @@ function viewLog() {
   };
   sel.onchange = upd; f.querySelector('[name=qty]').oninput = upd; f.querySelector('[name=type]').onchange = upd; upd();
   $('#addLog').onclick = () => {
-    const obj = readForm(f, [{ k: 'rid' }, { k: 'date' }, { k: 'type' }, { k: 'qty' }, { k: 'who' }, { k: 'use' }]);
-    if (!obj.rid) return toast('시약을 골라 주세요.', true);
-    if (!(Number(obj.qty) > 0)) return toast('수량을 입력해 주세요.', true);
+    const LF = [{ k: 'rid', label: '시약', req: true }, { k: 'date', label: '날짜', req: true }, { k: 'type', label: '구분', req: true }, { k: 'qty', label: '수량', req: true }, { k: 'who', label: '담당교사', req: true }, { k: 'use' }];
+    const obj = readForm(f, LF);
+    if (!checkReq(f, LF, obj)) return;
+    if (!(Number(obj.qty) > 0)) return toast('수량은 0보다 큰 숫자로 입력해 주세요.', true);
     try { if (obj.who) localStorage.setItem('sci_who', obj.who); } catch (e) {}
     const r = d.reagents.find(x => x.id === obj.rid), q = Number(obj.qty), sign = obj.type === '입고' ? 1 : -1;
     const snap = { stock: r.stock, lastLog: r.lastLog };
@@ -764,11 +944,13 @@ function viewWaste() {
   const recent = d.waste.slice(-40).reverse();
   $('#main').innerHTML = '<div class="stats">' + o.wasteKind.map(k => { const b = d.waste.filter(w => w.kind === k).slice(-1)[0]; return '<div class="stat" style="cursor:default"><div class="l">' + k + ' 잔량</div><div class="v">' + (b ? num(b.remain) + ' <span class="note">' + esc(b.unit) + '</span>' : '0') + '</div></div>'; }).join('') + '</div>' +
     '<div class="panel"><h3>폐수·폐시약 기록 추가</h3><div class="form" id="f">' +
-      '<label>날짜<input type="date" name="date" value="' + today() + '"></label>' +
-      '<label>성상<select name="kind">' + o.wasteKind.map(k => '<option>' + k + '</option>').join('') + '</select></label>' +
-      '<label>단위<select name="unit">' + o.wasteUnit.map(k => '<option>' + k + '</option>').join('') + '</select></label>' +
-      '<label>발생량<input type="number" name="gen" step="any" inputmode="decimal"></label>' +
-      '<label>처리량 (수거·위탁)<input type="number" name="done" step="any" inputmode="decimal"></label>' +
+      REQNOTE +
+      '<label data-f="date">날짜<span class="req">*</span><input type="date" name="date" value="' + today() + '"></label>' +
+      '<label data-f="kind">성상<span class="req">*</span><select name="kind">' + o.wasteKind.map(k => '<option>' + k + '</option>').join('') + '</select></label>' +
+      '<label data-f="unit">단위<span class="req">*</span><select name="unit">' + o.wasteUnit.map(k => '<option>' + k + '</option>').join('') + '</select></label>' +
+      '<label data-f="gen">발생량<span class="req">*</span><input type="number" name="gen" step="any" inputmode="decimal"></label>' +
+      '<label data-f="done">처리량 (수거·위탁)<span class="req">*</span><input type="number" name="done" step="any" inputmode="decimal"></label>' +
+      '<div class="reqnote">발생량과 처리량은 둘 중 하나만 적어도 돼요.</div>' +
       '<label>수거자 확인<input name="collector" placeholder="예: ○○지원청 수거"></label>' +
       '<label class="full">비고<input name="note"></label>' +
     '</div><p class="note">같은 성상은 같은 단위로 기록해 주세요(폐수 L, 폐시약 g). 무기계와 유기계 폐수는 섞지 않아요.</p>' +
