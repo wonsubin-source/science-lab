@@ -151,7 +151,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-C · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-D · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -640,13 +640,18 @@ function itemForm(it, preset) {
 const RF = ['전체', '유해화학물질', '확인 필요', '유효기한', 'MSDS 미게시', '옮기기 권장', '폐기예정'];
 const hasStock = r => r.base !== '' && r.base != null;
 const stockTxt = r => hasStock(r) ? num(r.stock) + ' ' + esc(r.unit) : '재고 미입력';
+// MSDS 비대상일 가능성이 큰 이름 (확정은 공급업체 확인)
+const NOMSDS_RE = /(멸균|정제|탈이온|이온교환|초순수|증류)\s*(증류)?수|^\s*(순수|물)\s*$|DI\s*water|distilled/i;
+const maybeNoMsds = n => NOMSDS_RE.test(String(n || ''));
+const isYes = v => v === true || v === 'TRUE';
 function rgFlags(r) {
   const f = [];
   if (r.haz === 'O') f.push(['유해화학물질', 'bad']);
   if (r.haz === '확인 필요') f.push(['유해 여부 확인', 'warn']);
   if (needConc(r)) f.push(['농도 확인', 'warn']);
   if (r.expState === '기한 지남') f.push(['기한 지남', 'bad']); else if (r.expState === '90일 이내') f.push(['기한 임박', 'warn']);
-  if (r.msds !== true && r.msds !== 'TRUE') f.push(['MSDS 미게시', 'warn']);
+  if (isYes(r.noMsds)) f.push(['MSDS 비대상', '']);
+  else if (!isYes(r.msds)) f.push([maybeNoMsds(r.name) ? 'MSDS 미게시 · 비대상일 수 있음' : 'MSDS 미게시', 'warn']);
   if (r.check === '옮기기 권장') f.push(['옮기기 권장', 'bad']);
   if (r.waste === true || r.waste === 'TRUE') f.push(['폐기예정', '']);
   if (/산화제/.test(r.prop)) f.push(['산화제', 'warn']);
@@ -658,7 +663,7 @@ function rgFilter(r) {
     case '유해화학물질': return r.haz === 'O';
     case '확인 필요': return r.haz === '확인 필요' || needConc(r);
     case '유효기한': return r.expState === '기한 지남' || r.expState === '90일 이내';
-    case 'MSDS 미게시': return !(r.msds === true || r.msds === 'TRUE');
+    case 'MSDS 미게시': return !isYes(r.msds) && !isYes(r.noMsds);
     case '옮기기 권장': return r.check === '옮기기 권장';
     case '폐기예정': return r.waste === true || r.waste === 'TRUE';
     default: return true;
@@ -699,7 +704,7 @@ function rgDetail(id) {
       '<dt>추천 보관</dt><dd>' + esc(r.recZone || '—') + (r.recKan ? ' → ' + esc(r.recKan) : '') + ' <span class="b ' + (r.check === '적합' ? 'ok' : r.check === '옮기기 권장' ? 'bad' : '') + '">' + esc(r.check) + '</span></dd>' +
       (r.sep ? '<dt>분리 보관</dt><dd>' + esc(r.sep) + '</dd>' : '') +
       '<dt>유효기한</dt><dd>' + esc(r.exp || '—') + (r.expState ? ' <span class="b ' + (r.expState === '기한 지남' ? 'bad' : 'warn') + '">' + esc(r.expState) + '</span>' : '') + '</dd>' +
-      '<dt>MSDS</dt><dd>' + (yes(r.msds) ? '게시함 ' + esc(r.msdsDate) : '미게시') + (r.msdsVendor ? ' · ' + esc(r.msdsVendor) : '') + (r.msdsLink ? ' · <a href="' + esc(r.msdsLink) + '" target="_blank">MSDS 열기</a>' : '') + '</dd>' +
+      '<dt>MSDS</dt><dd>' + (yes(r.msds) ? '게시함 ' + esc(r.msdsDate) : yes(r.noMsds) ? 'MSDS 비대상' : '미게시') + (r.msdsVendor ? ' · ' + esc(r.msdsVendor) : '') + (r.msdsLink ? ' · <a href="' + esc(r.msdsLink) + '" target="_blank">MSDS 열기</a>' : '') + '</dd>' +
       '<dt>최근 출납</dt><dd>' + esc(r.lastLog || '—') + '</dd>' +
     '</dl>' + (r.note ? '<div class="alert warn">' + esc(r.note) + '</div>' : '') +
     (r.kan ? (() => { const k = (st.data.kans || []).find(x => x.id === r.kan) || {}; const c = st.data.cabs.find(x => x.id === k.cab) || {}; return whereBlock(r.kan, k.cab, c.space); })() : '') +
@@ -718,14 +723,14 @@ function rgForm(r, preset) {
     { k: 'kan', label: '보관 위치(칸)', type: 'kan', full: true, req: true }, { k: 'spec', label: '규격 (한 병 용량)', ph: '예: 500 mL', req: true }, { k: 'cnt', label: '개수(병)', type: 'number' },
     { k: 'unit', label: '관리단위', type: 'select', opts: o.unit }, { k: 'base', label: '기초재고량 (처음 등록할 때 남아 있던 양)', type: 'number' },
     { k: 'inDate', label: '입고일', type: 'date' }, { k: 'openDate', label: '개봉일', type: 'date' }, { k: 'exp', label: '유효기한', type: 'date' },
-    { k: 'msdsDate', label: 'MSDS 게시일', type: 'date' }, { k: 'msds', label: 'MSDS 게시함', type: 'check' }, { k: 'waste', label: '폐기 예정', type: 'check' },
+    { k: 'msdsDate', label: 'MSDS 게시일', type: 'date' }, { k: 'msds', label: 'MSDS 게시함', type: 'check' }, { k: 'noMsds', label: 'MSDS 비대상 (업체 확인)', type: 'check' }, { k: 'waste', label: '폐기 예정', type: 'check' },
     { k: 'msdsLink', label: 'MSDS 링크 (판매업체에서 받은 파일)', full: true }, { k: 'msdsVendor', label: 'MSDS 제공업체', full: true }, { k: 'note', label: '비고', type: 'area' }];
   const v = preset || r || { haz: '확인 필요' };
   openModal('<h2>' + (r ? '시약 정보 수정' : '새 시약 등록') + '</h2>' + (r ? '<div class="note">' + esc(r.id) + '</div>' : '<div class="alert ac">저장하면 유해화학물질 기준농도, 분류, 추천 보관 위치가 자동으로 계산돼요.</div>') +
     '<div class="form" id="f">' + REQNOTE + F.map(f => field(f, v[f.k]) + (f.k === 'haz' ? '<div class="auto full" id="hazbox" style="grid-column:1/-1;display:none"></div>' : '')).join('') + '</div>' +
     '<p class="note">새로 산 병은 여기서 개수를 바꾸지 말고 <b>[+ 시약 구입·입고]</b>로 기록해 주세요. 그래야 출납대장에 입고가 남아요. 유해화학물질 여부는 시약명·농도로 자동 판정돼요(틀리면 직접 바꾸기). 모르면 "확인 필요"로 두세요. MSDS는 판매업체에서 받은 것만 유효해요.</p>' +
     '<div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
-  hookHaz($('#f'));
+  hookHaz($('#f')); hookMsds($('#f'));
   $('#save').onclick = () => {
     const obj = readForm($('#f'), F); if (r) obj.id = r.id;
     if (!obj.haz) obj.haz = '확인 필요';
@@ -882,6 +887,7 @@ function concPct(conc, name, formula) {
 // → { verdict: 'O'|'X'|'확인 필요', html: 설명 }
 function judgeHaz(name, conc, formula, cas) {
   if (!String(name || '').trim()) return { verdict: '', html: '' };
+  if (maybeNoMsds(name)) return { verdict: 'X', html: '물(증류수·정제수)은 유해화학물질이 <b>아니에요 (X)</b>.' };
   const hit = findStd(name, formula, cas);
   const kreach = '<a href="https://kreach.mcee.go.kr" target="_blank" rel="noopener">화학물질정보처리시스템</a>';
   if (!hit.length) return { verdict: '확인 필요', html: '[부록9] 기준표에 없는 물질이에요. 병 라벨이나 MSDS의 CAS번호로 ' + kreach + '에서 규제정보를 확인해 주세요. 우선 <b>확인 필요</b>로 저장돼요.' };
@@ -901,6 +907,24 @@ function judgeHaz(name, conc, formula, cas) {
 function needConc(r) {
   if (String(r.conc || '').trim() || concPct('', r.name, r.formula).p != null) return false;
   return findStd(r.name, r.formula, r.cas).some(x => pctOf(x.a) != null || pctOf(x.b) != null);
+}
+// MSDS 비대상 안내: 이름이 증류수 등이면 안내를 보여 주고, 비대상 체크 시 근거를 비고에 적도록 안내
+function hookMsds(f) {
+  const nm = f.querySelector('[name=name]'), no = f.querySelector('[name=noMsds]'), ms = f.querySelector('[name=msds]');
+  if (!no) return;
+  const lab = no.closest('label');
+  let box = f.querySelector('#msdsbox');
+  if (!box) { box = document.createElement('div'); box.id = 'msdsbox'; box.className = 'auto full'; box.style.gridColumn = '1/-1'; lab.after(box); }
+  const run = () => {
+    const sug = nm && maybeNoMsds(nm.value);
+    if (no.checked && ms && ms.checked) ms.checked = false;
+    box.style.display = (sug || no.checked) ? '' : 'none';
+    box.innerHTML = no.checked
+      ? '<b>MSDS 비대상으로 저장돼요.</b> MSDS 미게시 경고가 사라져요. 나중에 점검할 때를 위해 <b>비고</b>에 근거를 적어 두세요. (예: "OO과학 확인, 2026-10-08, 위험성 없음으로 MSDS 미발행")'
+      : '<b>MSDS가 필요 없을 수도 있어요.</b> 증류수처럼 위험성이 없는 물질은 MSDS 대상이 아닐 수 있어요. 그래도 경기도 계획서에는 "구매·사용하는 모든 화학제품의 MSDS 수령·게시"라고 되어 있으니, ① 업체가 MSDS를 주면 그대로 게시하고 ② 업체가 "MSDS 대상 아님"이라고 하면 <b>MSDS 비대상</b>을 체크하세요.';
+  };
+  [nm, no, ms].forEach(el => el && el.addEventListener('change', run)); if (nm) nm.addEventListener('input', run);
+  run();
 }
 // 폼에 붙이기: 시약명·농도·화학식·CAS가 바뀌면 판정을 보여 주고, 선생님이 직접 고르지 않았으면 유해화학물질 여부를 자동으로 채움
 function hookHaz(f) {
@@ -923,7 +947,7 @@ function hookHaz(f) {
 function buyNew(preset) {
   const d = st.data, o = d.opt, p = preset || {};
   const MORE = [{ k: 'formula', label: '화학식' }, { k: 'cas', label: 'CAS번호' }, { k: 'exp', label: '유효기한', type: 'date' }, { k: 'openDate', label: '개봉일', type: 'date' },
-    { k: 'msdsDate', label: 'MSDS 게시일', type: 'date' }, { k: 'msds', label: 'MSDS 게시함', type: 'check' },
+    { k: 'msdsDate', label: 'MSDS 게시일', type: 'date' }, { k: 'msds', label: 'MSDS 게시함', type: 'check' }, { k: 'noMsds', label: 'MSDS 비대상 (업체 확인)', type: 'check' },
     { k: 'msdsLink', label: 'MSDS 링크 (판매업체에서 받은 파일)', full: true }, { k: 'msdsVendor', label: 'MSDS 제공업체', full: true }, { k: 'note', label: '비고', type: 'area' }];
   openModal('<h2>처음 사는 시약 등록</h2>' +
     '<div class="form" id="bn">' + REQNOTE +
@@ -954,7 +978,7 @@ function buyNew(preset) {
       '). 같은 시약을 또 산 거라면 <button class="btn" id="toOld" style="padding:4px 10px;font-size:13px">이미 있는 시약으로 입고</button></div>' : '';
     const t = $('#toOld'); if (t) t.onclick = () => buyOld(same[0].id);
   };
-  f.querySelectorAll('input,select').forEach(el => { el.addEventListener('input', prev); el.addEventListener('change', prev); }); prev(); hookHaz(f);
+  f.querySelectorAll('input,select').forEach(el => { el.addEventListener('input', prev); el.addEventListener('change', prev); }); prev(); hookHaz(f); hookMsds(f);
   $('#nsave').onclick = () => {
     const NF = [{ k: 'name', label: '시약명', req: true }, { k: 'conc', label: '농도' }, { k: 'haz', label: '유해화학물질 여부' },
       { k: 'specNum', label: '규격', req: true }, { k: 'specUnit' }, { k: 'bottles', label: '산 병 수', req: true }, { k: 'kan', label: '보관 위치(칸)', req: true },
@@ -1096,7 +1120,7 @@ function viewCheck() {
     ['유효기한 90일 이내', R.filter(r => r.expState === '90일 이내'), 'warn', '유효기한'],
     ['유해화학물질(O)', R.filter(r => r.haz === 'O'), 'bad', '유해화학물질'],
     ['유해 여부·농도 확인 필요', R.filter(r => r.haz === '확인 필요' || needConc(r)), 'warn', '확인 필요'],
-    ['MSDS 미게시', R.filter(r => !yes(r.msds)), 'warn', 'MSDS 미게시'],
+    ['MSDS 미게시', R.filter(r => !yes(r.msds) && !yes(r.noMsds)), 'warn', 'MSDS 미게시'],
     ['보관 위치 옮기기 권장', R.filter(r => r.check === '옮기기 권장'), 'bad', '옮기기 권장'],
     ['추천 칸 미설정', R.filter(r => r.check === '추천 칸 미설정'), '', null],
     ['폐기예정 시약', R.filter(r => yes(r.waste)), '', '폐기예정'],
