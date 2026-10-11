@@ -55,6 +55,7 @@
   .badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
   .b{font-size:12.5px;border-radius:8px;padding:2px 8px;background:var(--violet-soft);color:#4A3F6B}
   .b.bad{background:var(--bad-soft);color:var(--bad)} .b.warn{background:var(--warn-soft);color:var(--warn)}
+  .alert.ok{background:var(--ok-soft);color:var(--ok)}
   .b.ok{background:var(--ok-soft);color:var(--ok)} .b.ac{background:var(--berry-soft);color:var(--berry)}
   mark{background:var(--berry-soft);color:var(--bad);padding:0 2px;border-radius:4px}
   .empty{color:var(--muted);text-align:center;padding:40px 10px}
@@ -151,7 +152,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.11-B · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.11-C · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -289,7 +290,7 @@ function start() {
   });
 }
 
-const SCREEN_VER = '10.11-B';
+const SCREEN_VER = '10.11-C';
 const FLASK = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M13 4h8M14 4v9L6 27a3 3 0 0 0 2.6 4.5h16.8A3 3 0 0 0 28 27l-8-14V4" fill="#E3DAFF" stroke="#3A3150" stroke-width="2.4" stroke-linejoin="round"/><path d="M9.3 22h15.4l2.6 5a2 2 0 0 1-1.8 3H8.5a2 2 0 0 1-1.8-3z" fill="#FF5C9E"/><circle cx="14" cy="26" r="1.6" fill="#fff"/><circle cx="19.5" cy="24.5" r="1.1" fill="#fff"/></svg>';
 function render() {
   const d = st.data, T = st.mode === 'teacher';
@@ -755,10 +756,10 @@ function rgForm(r, preset) {
     { k: 'msdsLink', label: 'MSDS 링크 (판매업체에서 받은 파일)', full: true }, { k: 'msdsVendor', label: 'MSDS 제공업체', full: true }, { k: 'note', label: '비고', type: 'area' }];
   const v = preset || r || { haz: '확인 필요' };
   openModal('<h2>' + (r ? '시약 정보 수정' : '새 시약 등록') + '</h2>' + (r ? '<div class="note">' + esc(r.id) + '</div>' : '<div class="alert ac">저장하면 유해화학물질 기준농도, 분류, 추천 보관 위치가 자동으로 계산돼요.</div>') +
-    '<div class="form" id="f">' + REQNOTE + F.map(f => field(f, f.k === 'usage' ? usageOf(v) : v[f.k]) + (f.k === 'haz' ? '<div class="auto full" id="hazbox" style="grid-column:1/-1;display:none"></div>' : '')).join('') + '</div>' +
+    '<div class="form" id="f">' + REQNOTE + F.map(f => field(f, f.k === 'usage' ? usageOf(v) : v[f.k]) + (f.k === 'haz' ? '<div class="auto full" id="hazbox" style="grid-column:1/-1;display:none"></div>' : '') + (f.k === 'msdsVendor' ? MSDS_TOOLS : '')).join('') + '</div>' +
     '<p class="note">새로 산 병은 여기서 개수를 바꾸지 말고 <b>[+ 시약 구입·입고]</b>로 기록해 주세요. 그래야 출납대장에 입고가 남아요. 유해화학물질 여부는 시약명·농도로 자동 판정돼요(틀리면 직접 바꾸기). 모르면 "확인 필요"로 두세요. MSDS는 판매업체에서 받은 것만 유효해요.</p>' +
     '<div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
-  hookHaz($('#f')); hookMsds($('#f'));
+  hookHaz($('#f')); hookMsds($('#f')); hookMsdsTools($('#f'));
   $('#save').onclick = () => {
     const obj = readForm($('#f'), F); if (r) obj.id = r.id;
     if (!obj.haz) obj.haz = '확인 필요';
@@ -954,6 +955,98 @@ function hookMsds(f) {
   [nm, no, ms].forEach(el => el && el.addEventListener('change', run)); if (nm) nm.addEventListener('input', run);
   run();
 }
+
+// ───────── MSDS 자동 채우기: 파일 올리기(드라이브 MSDS 폴더에 저장) 또는 링크 읽기 → "이렇게 채울까요?" ─────────
+const MSDS_TOOLS = '<div class="full msdstools" style="grid-column:1/-1;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;border:1.5px dashed var(--line,#D9D3EA);border-radius:12px;padding:10px 12px">' +
+  '<div style="font-weight:700;margin-bottom:6px">MSDS로 자동 채우기</div>' +
+  '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-msds="up">📎 MSDS 파일 올리기</button>' +
+  '<button type="button" class="btn" data-msds="link">🔍 MSDS 링크에서 읽기</button><input type="file" accept="application/pdf,image/*" data-msds="file" style="display:none"></div>' +
+  '<div class="note" style="margin-top:6px">파일을 올리면 드라이브 MSDS 폴더에 "입고일 시약명 MSDS"로 저장하고, CAS 번호·농도(함유량)·제공업체를 찾아 줘요.</div>' +
+  '<div data-msds="out"></div></div>';
+function hookMsdsTools(f) {
+  const box = f.querySelector('.msdstools'); if (!box) return;
+  const $f = n => f.querySelector('[name="' + n + '"]'), out = box.querySelector('[data-msds="out"]'), fileIn = box.querySelector('[data-msds="file"]');
+  const busy = msg => { out.innerHTML = '<div class="alert ac" style="margin:8px 0 0"><span class="spin" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin:0 6px 0 0;border-width:2px"></span>' + msg + '</div>'; box.querySelectorAll('button').forEach(b => b.disabled = true); };
+  const done = () => box.querySelectorAll('button').forEach(b => b.disabled = false);
+  const fail = e => { done(); out.innerHTML = '<div class="alert bad" style="margin:8px 0 0">' + esc(e.message || e) + '</div>'; };
+  box.querySelector('[data-msds="up"]').onclick = () => {
+    if (!String(($f('name') || {}).value || '').trim()) { toast('파일 이름에 쓸 시약명을 먼저 적어 주세요.', true); ($f('name') || {}).focus && $f('name').focus(); return; }
+    fileIn.click();
+  };
+  fileIn.onchange = () => {
+    const file = fileIn.files[0]; fileIn.value = ''; if (!file) return;
+    if (file.size > 20 * 1024 * 1024) return fail(new Error('파일이 너무 커요 (20MB까지).'));
+    const rd = new FileReader();
+    rd.onload = () => {
+      busy('드라이브에 저장하고 MSDS를 읽는 중이에요… (10~30초)');
+      const date = (($f('inDate') || $f('date') || {}).value) || today();
+      call('uploadMsds', { b64: String(rd.result).split(',')[1], mime: file.type || 'application/pdf', fileName: file.name, name: $f('name').value.trim(), date: date })
+        .then(r => { done(); showMsdsSuggest(f, out, r, true); }).catch(fail);
+    };
+    rd.onerror = () => fail(new Error('파일을 읽지 못했어요.'));
+    rd.readAsDataURL(file);
+  };
+  box.querySelector('[data-msds="link"]').onclick = () => {
+    const link = String(($f('msdsLink') || {}).value || '').trim();
+    if (!link) { toast('MSDS 링크 칸에 드라이브 링크를 먼저 넣어 주세요. 파일이 컴퓨터에 있으면 [MSDS 파일 올리기]를 누르세요.', true); openMore(f); ($f('msdsLink') || {}).focus && $f('msdsLink').focus(); return; }
+    busy('MSDS를 읽는 중이에요… (10~20초)');
+    call('analyzeMsds', link).then(r => { done(); showMsdsSuggest(f, out, r, false); }).catch(fail);
+  };
+}
+const openMore = f => { const d = f.querySelector('details.more'); if (d) d.open = true; };
+// 여러 성분 중 이 시약의 주성분 고르기: 물 제외 → [부록9]에서 시약명으로 찾은 물질의 CAS → 이름이 겹치는 성분 → 함유량이 큰 성분
+function mainComp(comps, name) {
+  const c = comps.filter(x => !x.water); if (c.length <= 1) return c[0] || null;
+  const std = findStd(name, '', ''), cas = std.map(x => x.cas);
+  const byStd = c.find(x => cas.indexOf(x.cas) >= 0); if (byStd) return byStd;
+  const n = hzNorm(name), byName = c.find(x => x.name && n.indexOf(hzNorm(x.name).replace(/\(.*$/, '')) >= 0); if (byName) return byName;
+  const hi = x => Number(String(x.pct).split('~').pop()) || 0;
+  return c.slice().sort((a, b) => hi(b) - hi(a))[0];
+}
+function showMsdsSuggest(f, out, r, uploaded) {
+  const $f = n => f.querySelector('[name="' + n + '"]'), cur = n => String(($f(n) || {}).value || '').trim();
+  const comps = (r.comps || []), solids = comps.filter(x => !x.water), main = mainComp(comps, cur('name'));
+  const rows = [];   // [키, 이름, 새 값, 기본 체크]
+  if (uploaded) rows.push(['msdsLink', 'MSDS 링크', r.url, true]);
+  if (main) {
+    rows.push(['cas', 'CAS번호', main.cas, !cur('cas') || cur('cas') === main.cas]);
+    if (main.pct) rows.push(['conc', '농도', main.pct + '%', !cur('conc')]);
+  }
+  if (r.vendor) rows.push(['msdsVendor', 'MSDS 제공업체', r.vendor, !cur('msdsVendor') || cur('msdsVendor') === r.vendor]);
+  if (r.formula && $f('formula')) rows.push(['formula', '화학식', r.formula, !cur('formula')]);
+  if (uploaded) { rows.push(['msdsDate', 'MSDS 게시일', today(), !cur('msdsDate')]); rows.push(['msds', 'MSDS 게시함', '체크', true]); }
+  const list = comps.length ? '<div class="note" style="margin:4px 0 6px">MSDS 성분: ' + comps.map(x => esc((x.name || '?') + ' ' + x.cas + (x.pct ? ' (' + x.pct + '%)' : ''))).join(' · ') + '</div>' : '';
+  const pick = solids.length > 1 ? '<div style="margin:4px 0 8px"><div class="note">이 시약의 주성분을 골라 주세요 (CAS번호·농도에 쓰여요)</div>' + solids.map(x =>
+    '<label class="chk" style="display:flex;gap:6px;align-items:center;font-weight:500"><input type="radio" name="_mcomp" value="' + esc(x.cas) + '"' + (x === main ? ' checked' : '') + '>' + esc((x.name || '성분') + ' · ' + x.cas + (x.pct ? ' · ' + x.pct + '%' : '')) + '</label>').join('') + '</div>' : '';
+  out.innerHTML = '<div class="alert ac" style="margin:8px 0 0;display:block">' +
+    (uploaded ? '<div>✅ 드라이브에 저장했어요: <a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.fileName) + '</a></div>' : '') +
+    (r.warn ? '<div style="color:var(--bad)">' + esc(r.warn) + '</div>' : '') + list + pick +
+    (rows.length ? '<b>이렇게 채울까요?</b>' + rows.map(([k, l, v, on]) => {
+      const now = k === 'msds' ? '' : cur(k);
+      return '<label class="chk" style="display:flex;gap:6px;align-items:flex-start;font-weight:500;margin-top:4px"><input type="checkbox" data-sk="' + k + '"' + (on ? ' checked' : '') + '><span style="min-width:0"><b>' + l + '</b> → ' +
+        (k === 'msdsLink' ? '<span data-sv="' + k + '" data-full="' + esc(v) + '">방금 올린 파일 링크</span>' : '<span data-sv="' + k + '">' + esc(v) + '</span>') +
+        (now && now !== v ? ' <span class="note">(지금: ' + esc(now) + ')</span>' : '') + '</span></label>';
+    }).join('') + '<div class="btns" style="justify-content:flex-start;margin-top:8px"><button type="button" class="btn pri" data-msds="apply">선택한 값 채우기</button></div>' : '') + '</div>';
+  out.querySelectorAll('input[name="_mcomp"]').forEach(rb => rb.onchange = () => {
+    const c = solids.find(x => x.cas === rb.value); if (!c) return;
+    const sv = k => out.querySelector('[data-sv="' + k + '"]');
+    if (sv('cas')) sv('cas').textContent = c.cas;
+    if (sv('conc')) sv('conc').textContent = c.pct ? c.pct + '%' : '';
+  });
+  const ap = out.querySelector('[data-msds="apply"]');
+  if (ap) ap.onclick = () => {
+    let n = 0;
+    out.querySelectorAll('input[data-sk]:checked').forEach(cb => {
+      const k = cb.dataset.sk, el = $f(k); if (!el) return;
+      const sv = out.querySelector('[data-sv="' + k + '"]');
+      if (k === 'msds') el.checked = true; else el.value = sv.dataset.full || sv.textContent;
+      el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); n++;
+      if (el.closest('details.more')) openMore(f);
+    });
+    out.innerHTML = '<div class="alert ok" style="margin:8px 0 0">' + n + '개 칸을 채웠어요. 확인하고 아래 <b>저장</b>을 눌러 주세요.</div>';
+  };
+}
+
 // 폼에 붙이기: 시약명·농도·화학식·CAS가 바뀌면 판정을 보여 주고, 선생님이 직접 고르지 않았으면 유해화학물질 여부를 자동으로 채움
 function hookHaz(f) {
   const sel = f.querySelector('[name=haz]'), box = f.querySelector('#hazbox');
@@ -989,6 +1082,7 @@ function buyNew(preset) {
       field({ k: 'bottles', label: '산 병 수', type: 'number', req: true }, p.bottles || 1) +
       field({ k: 'kan', label: '보관 위치(칸)', type: 'kan', rg: true, full: true, req: true }, p.kan) +
       field({ k: 'usage', label: '사용 실험 (어떤 실험에 쓰는지)', type: 'area', ph: '예: 산·염기 중화 반응, 지시약 색 변화 관찰' }, p.usage) +
+      MSDS_TOOLS +
       field({ k: 'date', label: '입고일', type: 'date', req: true }, p.date || today()) +
       field({ k: 'who', label: '담당교사', req: true, ph: '이름' }, p.who || WHO()) +
       '<div class="auto" id="nprev"></div>' +
@@ -1007,7 +1101,7 @@ function buyNew(preset) {
       '). 같은 시약을 또 산 거라면 <button class="btn" id="toOld" style="padding:4px 10px;font-size:13px">이미 있는 시약으로 입고</button></div>' : '';
     const t = $('#toOld'); if (t) t.onclick = () => buyOld(same[0].id);
   };
-  f.querySelectorAll('input,select').forEach(el => { el.addEventListener('input', prev); el.addEventListener('change', prev); }); prev(); hookHaz(f); hookMsds(f);
+  f.querySelectorAll('input,select').forEach(el => { el.addEventListener('input', prev); el.addEventListener('change', prev); }); prev(); hookHaz(f); hookMsds(f); hookMsdsTools(f);
   $('#nsave').onclick = () => {
     const NF = [{ k: 'name', label: '시약명', req: true }, { k: 'conc', label: '농도' }, { k: 'haz', label: '유해화학물질 여부' },
       { k: 'specNum', label: '규격', req: true }, { k: 'specUnit' }, { k: 'bottles', label: '산 병 수', req: true }, { k: 'kan', label: '보관 위치(칸)', req: true },
