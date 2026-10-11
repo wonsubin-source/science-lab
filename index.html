@@ -151,7 +151,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.08-M · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.11-A · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -288,7 +288,7 @@ function start() {
   });
 }
 
-const SCREEN_VER = '10.08-M';
+const SCREEN_VER = '10.11-A';
 const FLASK = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M13 4h8M14 4v9L6 27a3 3 0 0 0 2.6 4.5h16.8A3 3 0 0 0 28 27l-8-14V4" fill="#E3DAFF" stroke="#3A3150" stroke-width="2.4" stroke-linejoin="round"/><path d="M9.3 22h15.4l2.6 5a2 2 0 0 1-1.8 3H8.5a2 2 0 0 1-1.8-3z" fill="#FF5C9E"/><circle cx="14" cy="26" r="1.6" fill="#fff"/><circle cx="19.5" cy="24.5" r="1.1" fill="#fff"/></svg>';
 function render() {
   const d = st.data, T = st.mode === 'teacher';
@@ -611,7 +611,7 @@ function field(f, v) {
   if (f.type === 'kan') return '<label' + cls + '>' + f.label + kanSelect(f.k, v, f.rg) + (f.rg ? '<span class="note" style="font-weight:400">시약은 시약장 칸에만 둘 수 있어요.</span>' : '') + '</label>';
   if (f.type === 'select') return '<label' + cls + '>' + f.label + '<select name="' + f.k + '"><option value=""></option>' + f.opts.map(o => '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select></label>';
   if (f.type === 'check') return '<label data-f="' + f.k + '" class="chk' + (f.full ? ' full' : '') + '"><input type="checkbox" name="' + f.k + '"' + (v === true || v === 'TRUE' ? ' checked' : '') + '>' + f.label + '</label>';
-  if (f.type === 'area') return '<label class="full" data-f="' + f.k + '">' + f.label + '<textarea name="' + f.k + '" rows="2">' + esc(v) + '</textarea></label>';
+  if (f.type === 'area') return '<label class="full" data-f="' + f.k + '">' + f.label + '<textarea name="' + f.k + '" rows="2"' + (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + '>' + esc(v) + '</textarea></label>';
   return '<label' + cls + '>' + f.label + '<input name="' + f.k + '" type="' + (f.type || 'text') + '"' + (f.type === 'number' ? ' step="any" inputmode="decimal"' : '') + ' value="' + esc(v) + '"' + (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + '></label>';
 }
 // 빨간 * 칸이 비었는지 확인하고, 빈 칸을 빨갛게 표시
@@ -696,7 +696,7 @@ function rgFilter(r) {
 }
 function viewRg() {
   $('#main').innerHTML = '<div class="bar"><span class="note">시약 ' + st.data.reagents.length + '종 · 시약을 누르면 정보를 보고 고칠 수 있어요</span><button class="btn pri" id="newRg">+ 시약 구입·입고</button></div>' +
-    '<div class="search"><input id="rq" type="text" enterkeyhint="search" placeholder="시약 이름, 화학식, CAS번호" value="' + esc(st.rq) + '" autocomplete="off"><button class="x" id="rqx" aria-label="지우기">×</button></div>' +
+    '<div class="search"><input id="rq" type="text" enterkeyhint="search" placeholder="시약 이름, 화학식, CAS번호, 실험 이름 (예: 중화)" value="' + esc(st.rq) + '" autocomplete="off"><button class="x" id="rqx" aria-label="지우기">×</button></div>' +
     '<div class="chips" id="rf">' + RF.map(c => '<button class="chip' + (st.rf === c ? ' on' : '') + '" data-c="' + c + '">' + c + '</button>').join('') + '</div><div id="rres"></div>';
   $('#newRg').onclick = () => buyStart();
   const q = $('#rq'); q.oninput = () => { st.rq = q.value; drawRg(); };
@@ -705,11 +705,12 @@ function viewRg() {
   drawRg();
 }
 function drawRg() {
-  const list = st.data.reagents.filter(r => rgFilter(r) && matches(st.rq, r.name, r.formula, r.cas, r.conc));
+  const list = st.data.reagents.filter(r => rgFilter(r) && matches(st.rq, r.name, r.formula, r.cas, r.conc, r.usage));
   $('#rres').innerHTML = list.length ? '<div class="list">' + list.map(r =>
     '<button class="card' + (r._pending ? ' pending' : '') + '" data-rg="' + esc(r.id) + '"><div class="t"><span class="n">' + hl(r.name, st.rq) + pend(r) + (r.conc ? ' <span class="note">' + esc(r.conc) + '</span>' : '') + '</span>' +
     '<span class="q">' + stockTxt(r) + '</span></div>' +
     '<div class="p">' + esc(r.loc || '위치 미입력') + '</div>' +
+    (r.usage ? '<div class="p" style="color:var(--ink,#3A3150)">🧪 ' + hl(r.usage, st.rq) + '</div>' : '') +
     '<div class="badges">' + rgFlags(r).map(([t, c]) => '<span class="b ' + c + '">' + t + '</span>').join('') + '</div></button>').join('') + '</div>'
     : '<div class="empty">조건에 맞는 시약이 없어요.</div>';
   $('#rres').querySelectorAll('[data-rg]').forEach(b => b.onclick = () => rgDetail(b.dataset.rg));
@@ -721,6 +722,7 @@ function rgDetail(id) {
   openModal('<h2>' + esc(r.name) + '</h2><div class="note">' + esc(r.id) + (r.conc ? ' · ' + esc(r.conc) : '') + (r.formula ? ' · ' + esc(r.formula) : '') + (r.cas ? ' · CAS ' + esc(r.cas) : '') + '</div>' +
     '<div class="badges">' + rgFlags(r).map(([t, c]) => '<span class="b ' + c + '">' + t + '</span>').join('') + '</div>' +
     '<dl class="kv">' +
+      '<dt>사용 실험</dt><dd>' + (r.usage ? esc(r.usage) : '<span class="note">아직 안 적었어요 · [정보 수정]에서 적을 수 있어요</span>') + '</dd>' +
       '<dt>현재 위치</dt><dd>' + esc(r.loc || '—') + '</dd>' +
       '<dt>현재 보유량</dt><dd><b>' + stockTxt(r) + '</b>' + (r.spec ? ' <span class="note">(' + esc(r.spec) + ' × ' + esc(r.cnt) + ')</span>' : '') + '</dd>' +
       '<dt>유해화학물질</dt><dd>' + esc(r.haz || '—') + ' <span class="note">기준: ' + esc(r.tox) + '</span></dd>' +
@@ -745,7 +747,7 @@ function rgForm(r, preset) {
   const o = st.data.opt;
   const F = [{ k: 'name', label: '시약명', full: true, ph: '예: 묽은 염산(10%)', req: true }, { k: 'conc', label: '농도 (병 라벨에 적힌 대로)', ph: '예: 10%, 0.1 M — 모르면 비워 두기' }, { k: 'formula', label: '화학식' },
     { k: 'cas', label: 'CAS번호' }, { k: 'haz', label: '유해화학물질 여부 (자동)', type: 'select', opts: o.haz },
-    { k: 'kan', label: '보관 위치(칸)', type: 'kan', rg: true, full: true, req: true }, { k: 'spec', label: '규격 (한 병 용량)', ph: '예: 500 mL', req: true }, { k: 'cnt', label: '개수(병)', type: 'number' },
+    { k: 'kan', label: '보관 위치(칸)', type: 'kan', rg: true, full: true, req: true }, { k: 'usage', label: '사용 실험 (어떤 실험에 쓰는지)', type: 'area', ph: '예: 산·염기 중화 반응, 지시약 색 변화 관찰' }, { k: 'spec', label: '규격 (한 병 용량)', ph: '예: 500 mL', req: true }, { k: 'cnt', label: '개수(병)', type: 'number' },
     { k: 'unit', label: '관리단위', type: 'select', opts: o.unit }, { k: 'base', label: '기초재고량 (처음 등록할 때 남아 있던 양)', type: 'number' },
     { k: 'inDate', label: '입고일', type: 'date' }, { k: 'openDate', label: '개봉일', type: 'date' }, { k: 'exp', label: '유효기한', type: 'date' },
     { k: 'msdsDate', label: 'MSDS 게시일', type: 'date' }, { k: 'msds', label: 'MSDS 게시함', type: 'check' }, { k: 'noMsds', label: 'MSDS 비대상 (업체 확인)', type: 'check' }, { k: 'waste', label: '폐기 예정', type: 'check' },
@@ -985,6 +987,7 @@ function buyNew(preset) {
         '<select name="specUnit" style="width:84px">' + ['mL', 'L', 'g', 'kg'].map(u => '<option' + (u === (p.specUnit || 'mL') ? ' selected' : '') + '>' + u + '</option>').join('') + '</select></span></label>' +
       field({ k: 'bottles', label: '산 병 수', type: 'number', req: true }, p.bottles || 1) +
       field({ k: 'kan', label: '보관 위치(칸)', type: 'kan', rg: true, full: true, req: true }, p.kan) +
+      field({ k: 'usage', label: '사용 실험 (어떤 실험에 쓰는지)', type: 'area', ph: '예: 산·염기 중화 반응, 지시약 색 변화 관찰' }, p.usage) +
       field({ k: 'date', label: '입고일', type: 'date', req: true }, p.date || today()) +
       field({ k: 'who', label: '담당교사', req: true, ph: '이름' }, p.who || WHO()) +
       '<div class="auto" id="nprev"></div>' +
@@ -1007,14 +1010,14 @@ function buyNew(preset) {
   $('#nsave').onclick = () => {
     const NF = [{ k: 'name', label: '시약명', req: true }, { k: 'conc', label: '농도' }, { k: 'haz', label: '유해화학물질 여부' },
       { k: 'specNum', label: '규격', req: true }, { k: 'specUnit' }, { k: 'bottles', label: '산 병 수', req: true }, { k: 'kan', label: '보관 위치(칸)', req: true },
-      { k: 'date', label: '입고일', req: true }, { k: 'who', label: '담당교사', req: true }].concat(MORE);
+      { k: 'date', label: '입고일', req: true }, { k: 'who', label: '담당교사', req: true }, { k: 'usage' }].concat(MORE);
     const v = readForm(f, NF);
     if (!checkReq(f, NF, v)) return;
     const n = Number(v.bottles), sp = specPer(v.specNum + ' ' + v.specUnit);
     if (!(n > 0)) return toast('병 수는 1 이상으로 입력해 주세요.', true);
     if (!sp) return toast('규격을 숫자로 입력해 주세요 (예: 500).', true);
     setWHO(v.who);
-    const reagent = { name: v.name, conc: v.conc, haz: v.haz || '확인 필요', spec: v.specNum + ' ' + v.specUnit, kan: v.kan };
+    const reagent = { name: v.name, conc: v.conc, haz: v.haz || '확인 필요', spec: v.specNum + ' ' + v.specUnit, kan: v.kan, usage: v.usage };
     MORE.forEach(m => { reagent[m.k] = v[m.k]; });
     const pl = placeOf(v.kan), amt = sp.per * n;
     const local = Object.assign({}, reagent, { id: 'new-' + Date.now(), cnt: n, unit: sp.unit, base: 0, stock: amt, inDate: v.date, lastLog: v.date,
