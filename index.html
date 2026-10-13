@@ -136,6 +136,8 @@
   .auto b{color:var(--ink)}
   .thumb{width:56px;height:56px;object-fit:cover;border-radius:10px;flex:none;background:#EEEAF6}
   .photoprev{max-width:100%;max-height:220px;border-radius:12px;display:block;margin-top:6px}
+  .btn.danger{color:var(--bad);border-color:#F2C4CC;background:#fff} .btn.danger:hover{background:var(--bad-soft)}
+  .btn.dangerpri{background:var(--bad);color:#fff;border-color:var(--bad)} .btn:disabled{opacity:.45;cursor:not-allowed}
   button.tbtn{border:0;cursor:pointer;font-family:inherit}
   .tbtn{display:inline-block;background:var(--violet);color:#fff !important;text-decoration:none;font-weight:700;font-size:15px;padding:9px 18px;border-radius:12px;box-shadow:0 2px 8px rgba(123,92,250,.3)}
   .choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
@@ -155,7 +157,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.13-G · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.13-H · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -197,7 +199,7 @@ const TOK_KEY = 'sci_tok';
 const tokGet = () => { try { return localStorage.getItem(TOK_KEY) || sessionStorage.getItem(TOK_KEY) || ''; } catch (e) { return ''; } };
 const tokSet = (t, remember) => { try { (remember ? localStorage : sessionStorage).setItem(TOK_KEY, t); } catch (e) {} };
 const tokClear = () => { try { localStorage.removeItem(TOK_KEY); sessionStorage.removeItem(TOK_KEY); } catch (e) {} };
-const TEACHER_FNS = ['getTeacherData', 'saveItem', 'saveReagent', 'addLog', 'addWaste', 'receiveReagent', 'analyzeMsds', 'uploadMsds', 'uploadPhoto'];
+const TEACHER_FNS = ['getTeacherData', 'saveItem', 'saveReagent', 'addLog', 'addWaste', 'receiveReagent', 'analyzeMsds', 'uploadMsds', 'uploadPhoto', 'deleteItem', 'deleteReagent'];
 function loginErr(m) {
   m = String(m || '');
   if (/LOGIN_NEEDED/.test(m)) { tokClear(); st.tok = ''; setTimeout(() => showLogin('로그인이 끝났어요. 다시 로그인해 주세요.'), 50); }
@@ -356,7 +358,7 @@ function logout() {
   call('getPublicData').then(d => { st.data = d; st.ver = d.ver; render(); toast('로그아웃했어요.'); });
 }
 
-const SCREEN_VER = '10.13-G';
+const SCREEN_VER = '10.13-H';
 const FLASK = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M13 4h8M14 4v9L6 27a3 3 0 0 0 2.6 4.5h16.8A3 3 0 0 0 28 27l-8-14V4" fill="#E3DAFF" stroke="#3A3150" stroke-width="2.4" stroke-linejoin="round"/><path d="M9.3 22h15.4l2.6 5a2 2 0 0 1-1.8 3H8.5a2 2 0 0 1-1.8-3z" fill="#FF5C9E"/><circle cx="14" cy="26" r="1.6" fill="#fff"/><circle cx="19.5" cy="24.5" r="1.1" fill="#fff"/></svg>';
 function render() {
   const d = st.data, T = st.mode === 'teacher';
@@ -619,6 +621,14 @@ function hookPhoto(f) {
   q('camIn').onchange = () => go(q('camIn'));
   q('pickIn').onchange = () => go(q('pickIn'));
 }
+// 지우기 전에 한 번 더 묻는 창. need가 있으면 그 체크를 해야 [삭제]가 눌림
+function confirmDelete(title, html, need, onOk) {
+  openModal('<h2>' + esc(title) + '</h2>' + html +
+    (need ? '<label class="chk" style="display:flex;gap:8px;align-items:flex-start;margin:10px 0"><input type="checkbox" id="delNeed"><span>' + need + '</span></label>' : '') +
+    '<div class="btns"><button class="btn" data-close>취소</button><button class="btn dangerpri" id="delOk"' + (need ? ' disabled' : '') + '>삭제</button></div>');
+  const nd = $('#delNeed'); if (nd) nd.onchange = () => { $('#delOk').disabled = !nd.checked; };
+  $('#delOk').onclick = () => { const w = nd ? nd.checked : false; closeModal(); onOk(w); };
+}
 const thumbOf = u => String(u || '').replace(/sz=w\d+/, 'sz=w200');
 function itemCards(list) {
   return '<div class="list">' + list.map(it =>
@@ -764,8 +774,14 @@ function itemForm(it, preset) {
   const back = preset && preset.backCab;   // 사물함 화면에서 들어왔으면 저장 후 그 사물함 화면으로 돌아감
   const v = preset || (it ? { name: it.name, kw: it.kw, cat: it.cat, state: it.state, kan: it.kan, qty: it.qty, unit: it.unit, photo: it.photoRaw, note: it.note } : { state: '정상', unit: '개' });
   openModal('<h2>' + (it ? '교구 수정' : '새 교구') + '</h2>' + (it ? '<div class="note">' + esc(it.id) + '</div>' : '') +
-    '<div class="form" id="f">' + REQNOTE + F.map(f => (f.k === 'photo' ? PHOTO_TOOLS : '') + field(f, v[f.k])).join('') + '</div><div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
+    '<div class="form" id="f">' + REQNOTE + F.map(f => (f.k === 'photo' ? PHOTO_TOOLS : '') + field(f, v[f.k])).join('') + '</div><div class="btns">' +
+    (it && !it._pending ? '<button class="btn danger" id="delItem" style="margin-right:auto">삭제</button>' : '') + '<button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
   hookPhoto($('#f'));
+  if ($('#delItem')) $('#delItem').onclick = () => confirmDelete('교구 삭제', '<p><b>' + esc(it.name) + '</b>' + (it.kanName ? ' (' + esc([it.cabName, it.kanName].join(' › ')) + ')' : '') + '을(를) 목록에서 지울까요?</p><p class="note">구글 시트 교구 시트에서도 지워져요. 되돌릴 수 없어요.</p>', '', () => {
+    const items = st.data.items, i = items.indexOf(it), snap = it;
+    if (i >= 0) items.splice(i, 1); rerender();
+    save('deleteItem', { id: it.id }, () => toast('지웠어요 · ' + snap.name), e => { items.splice(Math.max(i, 0), 0, snap); rerender(); toast('지우지 못했어요: ' + e.message, true); });
+  });
   $('#save').onclick = () => {
     const obj = readForm($('#f'), F); if (it) obj.id = it.id;
     if (!checkReq($('#f'), F, obj)) return;
@@ -890,7 +906,18 @@ function rgForm(r, preset) {
   openModal('<h2>' + (r ? '시약 정보 수정' : '새 시약 등록') + '</h2>' + (r ? '<div class="note">' + esc(r.id) + '</div>' : '<div class="alert ac">저장하면 유해화학물질 기준농도, 분류, 추천 보관 위치가 자동으로 계산돼요.</div>') +
     '<div class="form" id="f">' + REQNOTE + F.map(f => field(f, f.k === 'usage' ? usageOf(v) : v[f.k]) + (f.k === 'haz' ? '<div class="auto full" id="hazbox" style="grid-column:1/-1;display:none"></div>' : '') + (f.k === 'msdsVendor' ? MSDS_TOOLS : '')).join('') + '</div>' +
     '<p class="note">새로 산 병은 여기서 개수를 바꾸지 말고 <b>[+ 시약 구입·입고]</b>로 기록해 주세요. 그래야 출납대장에 입고가 남아요. 유해화학물질 여부는 시약명·농도로 자동 판정돼요(틀리면 직접 바꾸기). 모르면 "확인 필요"로 두세요. MSDS는 판매업체에서 받은 것만 유효해요.</p>' +
-    '<div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
+    '<div class="btns">' + (r && !r._pending ? '<button class="btn danger" id="delRg" style="margin-right:auto">삭제</button>' : '') + '<button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
+  if ($('#delRg')) $('#delRg').onclick = () => {
+    const d = st.data, mine = d.logs.filter(l => l.rid === r.id);
+    const html = '<p><b>' + esc(r.name) + (r.spec ? ' ' + esc(r.spec) : '') + '</b> (' + esc(r.id) + ')을(를) 지울까요?</p>' +
+      (mine.length ? '<div class="alert warn">이 시약은 <b>출납기록이 ' + mine.length + '줄</b> 있어요. 출납기록은 <b>법정장부(서식3, 5년 보관)</b>라서 함부로 지우면 안 돼요.<br>• 다 쓰거나 버린 시약 → 지우지 말고 [사용·폐기 기록]에서 <b>폐기</b>로 기록해 주세요.<br>• <b>잘못 등록한 시약</b>일 때만 아래를 체크하고 지워 주세요.</div>' : '<p class="note">구글 시트 시약 시트에서도 지워져요. 되돌릴 수 없어요.</p>');
+    confirmDelete('시약 삭제', html, mine.length ? '잘못 등록한 시약이에요. <b>출납기록 ' + mine.length + '줄도 함께 지울게요.</b>' : '', withLogs => {
+      const list = d.reagents, i = list.indexOf(r), snapLogs = d.logs.slice();
+      if (i >= 0) list.splice(i, 1); d.logs = d.logs.filter(l => l.rid !== r.id); rerender();
+      save('deleteReagent', { id: r.id, withLogs: withLogs }, res => toast('지웠어요 · ' + r.name + (res.logs ? ' (출납기록 ' + res.logs + '줄 포함)' : '')),
+        e => { list.splice(Math.max(i, 0), 0, r); d.logs = snapLogs; rerender(); toast('지우지 못했어요: ' + e.message, true); });
+    });
+  };
   hookHaz($('#f')); hookMsds($('#f')); hookMsdsTools($('#f'));
   { const fe = $('#f'), spec = fe.querySelector('[name=spec]'), unit = fe.querySelector('[name=unit]');   // 규격 → 관리단위(mL·g) 자동
     const syncU = () => { const sp = specPer(spec.value); if (sp) { unit.value = sp.unit; unit.disabled = true; } else unit.disabled = false; };
