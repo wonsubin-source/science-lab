@@ -155,7 +155,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.13-E · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.13-G · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -356,7 +356,7 @@ function logout() {
   call('getPublicData').then(d => { st.data = d; st.ver = d.ver; render(); toast('로그아웃했어요.'); });
 }
 
-const SCREEN_VER = '10.13-E';
+const SCREEN_VER = '10.13-G';
 const FLASK = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M13 4h8M14 4v9L6 27a3 3 0 0 0 2.6 4.5h16.8A3 3 0 0 0 28 27l-8-14V4" fill="#E3DAFF" stroke="#3A3150" stroke-width="2.4" stroke-linejoin="round"/><path d="M9.3 22h15.4l2.6 5a2 2 0 0 1-1.8 3H8.5a2 2 0 0 1-1.8-3z" fill="#FF5C9E"/><circle cx="14" cy="26" r="1.6" fill="#fff"/><circle cx="19.5" cy="24.5" r="1.1" fill="#fff"/></svg>';
 function render() {
   const d = st.data, T = st.mode === 'teacher';
@@ -830,14 +830,23 @@ function viewRg() {
   drawRg();
 }
 function drawRg() {
-  const list = st.data.reagents.filter(r => rgFilter(r) && matches(st.rq, r.name, r.formula, r.cas, r.conc, usageOf(r))).sort((a, b) => isWaste(a) - isWaste(b));
-  $('#rres').innerHTML = list.length ? '<div class="list">' + list.map(r =>
-    '<button class="card' + (r._pending ? ' pending' : '') + '" data-rg="' + esc(r.id) + '"' + (isWaste(r) ? ' style="opacity:.6;background:#F4F2F8"' : '') + '><div class="t"><span class="n">' + hl(r.name, st.rq) + pend(r) + (r.conc ? ' <span class="note">' + esc(r.conc) + '</span>' : '') + '</span>' +
+  const list = st.data.reagents.filter(r => rgFilter(r) && matches(st.rq, r.name, r.formula, r.cas, r.conc, usageOf(r)));
+  const card = r => '<button class="card' + (r._pending ? ' pending' : '') + '" data-rg="' + esc(r.id) + '"' + (isWaste(r) ? ' style="opacity:.7;background:#F4F2F8"' : '') + '><div class="t"><span class="n">' + hl(r.name, st.rq) + pend(r) + (r.conc ? ' <span class="note">' + esc(r.conc) + '</span>' : '') + '</span>' +
     '<span class="q">' + stockTxt(r) + '</span></div>' +
     '<div class="p">' + esc(r.loc || '위치 미입력') + '</div>' +
     (usageOf(r) ? '<div class="p" style="color:var(--ink,#3A3150)">🧪 ' + hl(usageOf(r), st.rq) + '</div>' : '') +
-    '<div class="badges">' + rgFlags(r).map(([t, c]) => '<span class="b ' + c + '">' + t + '</span>').join('') + '</div></button>').join('') + '</div>'
-    : '<div class="empty">조건에 맞는 시약이 없어요.</div>';
+    '<div class="badges">' + rgFlags(r).map(([t, c]) => '<span class="b ' + c + '">' + t + '</span>').join('') + '</div></button>';
+  // 사용 가능한 시약과 폐기예정 시약을 칸을 나눠 보여 줌
+  const ok = list.filter(r => !isWaste(r)), ws = list.filter(isWaste);
+  const head = (t, n, c) => '<div class="sec" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><span>' + t + '</span><span class="b ' + (c || '') + '">' + n + '종</span></div>';
+  const wasteOpen = st.rf === '폐기예정' || !!st.rq || st.wasteOpen;
+  $('#rres').innerHTML = !list.length ? '<div class="empty">조건에 맞는 시약이 없어요.</div>' :
+    (ok.length ? head('사용 가능한 시약', ok.length, 'ok') + '<div class="list">' + ok.map(card).join('') + '</div>' : '') +
+    (ws.length ? '<details class="wastebox"' + (wasteOpen ? ' open' : '') + ' style="margin-top:16px;border:1.5px solid var(--line,#E2DDF0);border-radius:14px;padding:4px 12px 12px;background:#FAF9FC">' +
+      '<summary style="cursor:pointer;padding:8px 0;font-weight:700;display:flex;justify-content:space-between;align-items:center">🗑 폐기예정 시약 (사용 불가)<span class="b bad">' + ws.length + '종</span></summary>' +
+      '<div class="note" style="margin-bottom:8px">폐기할 때는 [사용·폐기 기록]에서 구분을 <b>폐기</b>로 기록해요. 다시 쓰려면 시약 정보에서 폐기예정 체크를 빼면 돼요.</div>' +
+      '<div class="list">' + ws.map(card).join('') + '</div></details>' : '');
+  const dt = $('#rres details.wastebox'); if (dt) dt.ontoggle = () => { st.wasteOpen = dt.open; };
   $('#rres').querySelectorAll('[data-rg]').forEach(b => b.onclick = () => rgDetail(b.dataset.rg));
 }
 function rgDetail(id) {
@@ -873,7 +882,7 @@ function rgForm(r, preset) {
   const F = [{ k: 'name', label: '시약명', full: true, ph: '예: 묽은 염산(10%)', req: true }, { k: 'conc', label: '농도 (병 라벨에 적힌 대로)', ph: '예: 10%, 0.1 M — 모르면 비워 두기' }, { k: 'formula', label: '화학식' },
     { k: 'cas', label: 'CAS번호' }, { k: 'haz', label: '유해화학물질 여부 (자동)', type: 'select', opts: o.haz },
     { k: 'kan', label: '보관 위치(칸)', type: 'kan', rg: true, full: true, req: true }, { k: 'usage', label: '사용 실험 (어떤 실험에 쓰는지)', type: 'area', ph: '예: 산·염기 중화 반응, 지시약 색 변화 관찰' }, { k: 'spec', label: '규격 (한 병 용량)', ph: '예: 500 mL', req: true }, { k: 'cnt', label: '개수(병)', type: 'number' },
-    { k: 'unit', label: '관리단위', type: 'select', opts: o.unit }, { k: 'base', label: '기초재고량 (처음 등록할 때 남아 있던 양)', type: 'number' },
+    { k: 'unit', label: '관리단위 (규격에서 자동)', type: 'select', opts: o.unit }, { k: 'base', label: '기초재고량 (처음 등록할 때 남아 있던 양)', type: 'number' },
     { k: 'inDate', label: '입고일', type: 'date' }, { k: 'openDate', label: '개봉일', type: 'date' }, { k: 'exp', label: '유효기한', type: 'date' },
     { k: 'msdsDate', label: 'MSDS 게시일', type: 'date' }, { k: 'msds', label: 'MSDS 게시함', type: 'check' }, { k: 'noMsds', label: 'MSDS 비대상 (업체 확인)', type: 'check' }, { k: 'waste', label: '폐기 예정', type: 'check' },
     { k: 'msdsLink', label: 'MSDS 링크 (판매업체에서 받은 파일)', full: true }, { k: 'msdsVendor', label: 'MSDS 제공업체', full: true }, { k: 'note', label: '비고', type: 'area' }];
@@ -883,9 +892,13 @@ function rgForm(r, preset) {
     '<p class="note">새로 산 병은 여기서 개수를 바꾸지 말고 <b>[+ 시약 구입·입고]</b>로 기록해 주세요. 그래야 출납대장에 입고가 남아요. 유해화학물질 여부는 시약명·농도로 자동 판정돼요(틀리면 직접 바꾸기). 모르면 "확인 필요"로 두세요. MSDS는 판매업체에서 받은 것만 유효해요.</p>' +
     '<div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
   hookHaz($('#f')); hookMsds($('#f')); hookMsdsTools($('#f'));
+  { const fe = $('#f'), spec = fe.querySelector('[name=spec]'), unit = fe.querySelector('[name=unit]');   // 규격 → 관리단위(mL·g) 자동
+    const syncU = () => { const sp = specPer(spec.value); if (sp) { unit.value = sp.unit; unit.disabled = true; } else unit.disabled = false; };
+    spec.addEventListener('input', syncU); syncU(); }
   $('#save').onclick = () => {
     const obj = readForm($('#f'), F); if (r) obj.id = r.id;
     if (!obj.haz) obj.haz = '확인 필요';
+    { const sp = specPer(obj.spec); if (sp) obj.unit = sp.unit; }
     if (!checkReq($('#f'), F, obj)) return;
     const list = st.data.reagents, snap = r ? JSON.parse(JSON.stringify(r)) : null;
     const pl = placeOf(obj.kan);
