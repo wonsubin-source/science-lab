@@ -134,6 +134,7 @@
   .form .reqnote{grid-column:1/-1;font-size:13px;color:var(--muted);margin:-4px 0 2px}
   .auto{grid-column:1/-1;background:#F4F1FF;border-radius:12px;padding:10px 12px;font-size:13.5px;color:#45338F}
   .auto b{color:var(--ink)}
+  button.tbtn{border:0;cursor:pointer;font-family:inherit}
   .tbtn{display:inline-block;background:var(--violet);color:#fff !important;text-decoration:none;font-weight:700;font-size:15px;padding:9px 18px;border-radius:12px;box-shadow:0 2px 8px rgba(123,92,250,.3)}
   .choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
   .choice button{border:1.5px solid #CFC5EE;background:#fff;border-radius:14px;padding:16px 12px;text-align:left;cursor:pointer}
@@ -152,7 +153,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.11-C · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.13-A · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -163,7 +164,7 @@
 <script>
 (function(){
 'use strict';
-const st = { mode: BOOT.mode, data: null, tab: 'items', q: '', cat: '전체', view: 'search', rq: '', rf: '전체', logRid: '' };
+const st = { mode: BOOT.mode === 'login' ? 'student' : BOOT.mode, data: null, tab: 'items', q: '', cat: '전체', view: 'search', rq: '', rf: '전체', logRid: '' };
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num = v => (v === '' || v == null) ? '' : (Math.round(Number(v) * 100) / 100).toLocaleString('ko-KR');
@@ -189,7 +190,20 @@ function hl(text, q) {
 
 // ── 서버 호출 ──
 const HOSTED = typeof window.GAS_API === 'string';   // GitHub 등 외부에 올린 학생용 화면
+// ── 교사 비밀번호 로그인: 토큰을 이 기기에 보관(기억하기 → 7일, 아니면 창을 닫을 때까지) ──
+const TOK_KEY = 'sci_tok';
+const tokGet = () => { try { return localStorage.getItem(TOK_KEY) || sessionStorage.getItem(TOK_KEY) || ''; } catch (e) { return ''; } };
+const tokSet = (t, remember) => { try { (remember ? localStorage : sessionStorage).setItem(TOK_KEY, t); } catch (e) {} };
+const tokClear = () => { try { localStorage.removeItem(TOK_KEY); sessionStorage.removeItem(TOK_KEY); } catch (e) {} };
+const TEACHER_FNS = ['getTeacherData', 'saveItem', 'saveReagent', 'addLog', 'addWaste', 'receiveReagent', 'analyzeMsds', 'uploadMsds'];
 function call(fn, ...args) {
+  if (!HOSTED && st.tok && TEACHER_FNS.indexOf(fn) >= 0) {   // 비밀번호로 들어온 교사: 토큰과 함께 보냄
+    return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(e => {
+      const m = String(e && e.message || e);
+      if (/LOGIN_NEEDED/.test(m)) { tokClear(); st.tok = ''; setTimeout(() => showLogin('로그인이 끝났어요. 다시 로그인해 주세요.'), 50); }
+      rej(new Error(m.replace(/^.*LOGIN_NEEDED:\s*/, '')));
+    }).teacherCall(st.tok, fn, args[0]));
+  }
   if (HOSTED) {
     const kind = fn === 'getVersion' ? 'ver' : fn === 'getPublicData' ? 'public' : null;
     if (!kind) return Promise.reject(new Error('이 화면에서는 볼 수만 있어요.'));
@@ -273,7 +287,12 @@ function start() {
       '</p><p class="note">선생님이라면: 설정 시트에 이메일이 등록되어 있는지, 이 구글 시트가 내 계정에 편집자로 공유되어 있는지 확인해 주세요.</p></div>';
     return;
   }
-  if (BOOT.data) { st.data = BOOT.data; st.ver = BOOT.data.ver; render(); startSync(); return; }
+  st.tok = tokGet();
+  if (BOOT.data) {
+    st.data = BOOT.data; st.ver = BOOT.data.ver; render(); startSync();
+    if (BOOT.mode === 'login') { if (st.tok) enterTeacher(); else showLogin(); }
+    return;
+  }
   if (HOSTED) {
     if (!/^https:\/\/script\.google\.com\//.test(window.GAS_API)) {
       $('#top').innerHTML = '<div><h1>과학실 교구 검색</h1></div>';
@@ -290,7 +309,42 @@ function start() {
   });
 }
 
-const SCREEN_VER = '10.11-C';
+// 교사 화면으로 바꾸기 (토큰으로 교사 데이터 받기)
+function enterTeacher() {
+  toast('교사용으로 여는 중…');
+  return call('getTeacherData').then(d => { st.mode = 'teacher'; st.tab = 'items'; st.data = d; st.ver = d.ver; closeModal(); render(); toast((d.me || '선생님') + ' 선생님, 교사용으로 들어왔어요.'); })
+    .catch(e => { if (!/로그인/.test(e.message)) toast('교사용으로 열지 못했어요: ' + e.message, true); });
+}
+function showLogin(msg) {
+  openModal('<h2>교사용 로그인</h2>' + (msg ? '<div class="alert warn">' + esc(msg) + '</div>' : '') +
+    '<form class="form" id="lg" autocomplete="on" onsubmit="return false">' +
+      '<label class="full">이름 (담당교사로 기록돼요)<input name="name" autocomplete="name" value="' + esc(WHO()) + '" placeholder="예: 원수빈"></label>' +
+      '<label class="full">비밀번호<input name="pw" type="password" autocomplete="current-password" placeholder="교사 비밀번호"></label>' +
+      '<label class="chk full"><input type="checkbox" name="remember">이 기기에서 7일 동안 로그인 유지 <span class="note">(내 휴대폰일 때만)</span></label>' +
+      '<div id="lgerr" style="grid-column:1/-1"></div>' +
+      '<div class="btns" style="grid-column:1/-1"><button type="button" class="btn" data-close>취소</button><button type="submit" class="btn pri" id="lgok">로그인</button></div>' +
+    '</form><p class="note">비밀번호는 구글 시트 메뉴 [과학실 앱 → 교사 비밀번호 설정]에서 정해요.</p>');
+  const f = $('#lg'), pw = f.querySelector('[name=pw]');
+  setTimeout(() => (f.querySelector('[name=name]').value ? pw : f.querySelector('[name=name]')).focus(), 50);
+  f.onsubmit = () => {
+    const name = f.querySelector('[name=name]').value.trim(), remember = f.querySelector('[name=remember]').checked;
+    if (!name) { $('#lgerr').innerHTML = '<div class="alert bad">이름을 적어 주세요.</div>'; return false; }
+    if (!pw.value) { $('#lgerr').innerHTML = '<div class="alert bad">비밀번호를 적어 주세요.</div>'; pw.focus(); return false; }
+    $('#lgok').disabled = true; $('#lgok').textContent = '확인 중…';
+    call('teacherLogin', { name: name, pw: pw.value, remember: remember }).then(r => {
+      st.tok = r.tok; tokSet(r.tok, remember); setWHO(r.name); enterTeacher();
+    }).catch(e => { $('#lgok').disabled = false; $('#lgok').textContent = '로그인'; pw.value = ''; pw.focus(); $('#lgerr').innerHTML = '<div class="alert bad">' + esc(e.message) + '</div>'; });
+    return false;
+  };
+}
+function logout() {
+  const t = st.tok; st.tok = ''; tokClear();
+  if (t) call('teacherLogout', t).catch(() => {});
+  st.mode = 'student'; st.tab = 'items';
+  call('getPublicData').then(d => { st.data = d; st.ver = d.ver; render(); toast('로그아웃했어요.'); });
+}
+
+const SCREEN_VER = '10.13-A';
 const FLASK = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M13 4h8M14 4v9L6 27a3 3 0 0 0 2.6 4.5h16.8A3 3 0 0 0 28 27l-8-14V4" fill="#E3DAFF" stroke="#3A3150" stroke-width="2.4" stroke-linejoin="round"/><path d="M9.3 22h15.4l2.6 5a2 2 0 0 1-1.8 3H8.5a2 2 0 0 1-1.8-3z" fill="#FF5C9E"/><circle cx="14" cy="26" r="1.6" fill="#fff"/><circle cx="19.5" cy="24.5" r="1.1" fill="#fff"/></svg>';
 function render() {
   const d = st.data, T = st.mode === 'teacher';
@@ -301,8 +355,11 @@ function render() {
     vw.innerHTML = '<div class="alert bad" style="margin:0 0 12px">화면 파일과 서버 파일 버전이 달라요 (화면 ' + SCREEN_VER + ' · 서버 ' + esc(d.code || '예전') + '). Apps Script에서 <b>Code.gs와 Index.html을 둘 다</b> 최신으로 바꾸고, <b>배포 관리 → 새 버전</b>을 학생용·교사용 모두 해 주세요.</div>';
   } else if (vw) vw.remove();
   $('#top').innerHTML = '<div><h1>' + FLASK + '과학실 교구 검색</h1><div class="sub">' + esc([d.school, T ? '교사용' : ''].filter(Boolean).join(' · ')) + '</div></div>' +
-    (T ? '<div class="who">' + esc(d.me) + '<br><a href="' + esc(d.sheetUrl) + '" target="_blank">구글 시트 열기</a></div>'
-       : ((HOSTED && window.TEACHER_URL) || d.teacherUrl ? '<div class="who"><a class="tbtn" href="' + esc((HOSTED && window.TEACHER_URL) || d.teacherUrl) + '">교사용</a></div>' : ''));
+    (T ? '<div class="who">' + esc(d.me) + '<br><a href="' + esc(d.sheetUrl) + '" target="_blank">구글 시트 열기</a>' + (st.tok ? ' · <a href="#" id="logout">로그아웃</a>' : '') + '</div>'
+       : HOSTED ? ((window.GAS_API || window.TEACHER_URL) ? '<div class="who"><a class="tbtn" href="' + esc(window.GAS_API ? window.GAS_API + (window.GAS_API.indexOf('?') < 0 ? '?' : '&') + 'mode=teacher' : window.TEACHER_URL) + '" target="_top">교사용</a></div>' : '')
+       : '<div class="who"><button class="tbtn" id="tlogin" type="button">교사용</button></div>');
+  const tl = $('#tlogin'); if (tl) tl.onclick = () => (st.tok ? enterTeacher() : showLogin());
+  const lo = $('#logout'); if (lo) lo.onclick = e => { e.preventDefault(); logout(); };
   const tabs = T ? [['items','교구'],['rg','시약'],['log','사용·폐기 기록'],['waste','폐수·폐시약'],['check','점검']] : [];
   $('#tabs').innerHTML = tabs.map(([k, l]) => '<button class="tab' + (st.tab === k ? ' on' : '') + '" data-tab="' + k + '">' + l + '</button>').join('');
   $('#tabs').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { st.tab = b.dataset.tab; render(); });
