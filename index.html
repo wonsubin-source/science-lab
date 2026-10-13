@@ -153,7 +153,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.13-A · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.13-B · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -196,13 +196,21 @@ const tokGet = () => { try { return localStorage.getItem(TOK_KEY) || sessionStor
 const tokSet = (t, remember) => { try { (remember ? localStorage : sessionStorage).setItem(TOK_KEY, t); } catch (e) {} };
 const tokClear = () => { try { localStorage.removeItem(TOK_KEY); sessionStorage.removeItem(TOK_KEY); } catch (e) {} };
 const TEACHER_FNS = ['getTeacherData', 'saveItem', 'saveReagent', 'addLog', 'addWaste', 'receiveReagent', 'analyzeMsds', 'uploadMsds'];
+function loginErr(m) {
+  m = String(m || '');
+  if (/LOGIN_NEEDED/.test(m)) { tokClear(); st.tok = ''; setTimeout(() => showLogin('로그인이 끝났어요. 다시 로그인해 주세요.'), 50); }
+  return new Error(m.replace(/^.*LOGIN_NEEDED:\s*/, ''));
+}
 function call(fn, ...args) {
-  if (!HOSTED && st.tok && TEACHER_FNS.indexOf(fn) >= 0) {   // 비밀번호로 들어온 교사: 토큰과 함께 보냄
-    return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(e => {
-      const m = String(e && e.message || e);
-      if (/LOGIN_NEEDED/.test(m)) { tokClear(); st.tok = ''; setTimeout(() => showLogin('로그인이 끝났어요. 다시 로그인해 주세요.'), 50); }
-      rej(new Error(m.replace(/^.*LOGIN_NEEDED:\s*/, '')));
-    }).teacherCall(st.tok, fn, args[0]));
+  const teacherFn = st.tok && TEACHER_FNS.indexOf(fn) >= 0;
+  if (!HOSTED && teacherFn) {   // 비밀번호로 들어온 교사: 토큰과 함께 보냄
+    return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(e => rej(loginErr(e && e.message || e))).teacherCall(st.tok, fn, args[0]));
+  }
+  if (HOSTED && (teacherFn || fn === 'teacherLogin' || fn === 'teacherLogout')) {   // GitHub 화면의 교사용: 구글 페이지를 열지 않고 데이터만 주고받음
+    return fetch(window.GAS_API, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn: fn, tok: fn === 'teacherLogout' ? args[0] : st.tok, arg: args[0] }) })
+      .then(r => { if (!r.ok) throw new Error('서버 응답 오류 (' + r.status + ')'); return r.json(); })
+      .then(j => { if (j && j.error) throw loginErr(j.error); return j.res; });
   }
   if (HOSTED) {
     const kind = fn === 'getVersion' ? 'ver' : fn === 'getPublicData' ? 'public' : null;
@@ -235,7 +243,7 @@ function poll() {
   call('getVersion').then(v => { if (String(v) !== String(st.ver)) refresh(); }).catch(() => {});
 }
 function loadCache() { if (!HOSTED) return null; try { return JSON.parse(localStorage.getItem('sci_pub') || 'null'); } catch (e) { return null; } }
-function saveCache(d) { if (!HOSTED) return; try { localStorage.setItem('sci_pub', JSON.stringify(d)); } catch (e) {} }
+function saveCache(d) { if (!HOSTED || st.mode === 'teacher' || (d && d.reagents)) return; try { localStorage.setItem('sci_pub', JSON.stringify(d)); } catch (e) {} }
 let syncing = false;
 function startSync() {
   if (syncing) return; syncing = true;
@@ -302,7 +310,9 @@ function start() {
     const cached = loadCache();   // 지난번 데이터로 먼저 띄우고, 새 데이터로 바로 바꿈
     if (cached) { st.data = cached; st.ver = cached.ver; render(); }
   }
-  call(dataFn()).then(d => { const first = !st.data; st.data = d; st.ver = d.ver; saveCache(d); first ? render() : rerender(); startSync(); }).catch(err => {
+  const wantTeacher = /[?&#]mode=teacher|#teacher/.test(location.search + location.hash);   // GitHub 주소?mode=teacher → 바로 로그인 창
+  call(dataFn()).then(d => { const first = !st.data; st.data = d; st.ver = d.ver; saveCache(d); first ? render() : rerender(); startSync();
+    if (wantTeacher && !st.wt && st.mode !== 'teacher') { st.wt = true; if (st.tok) enterTeacher(); else showLogin(); } }).catch(err => {
     if (st.data) { toast('최신 내용을 불러오지 못했어요. 잠시 후 다시 시도해요.', true); startSync(); return; }
     $('#main').innerHTML = '<div class="panel"><h3>불러오지 못했어요</h3><p>' + esc(err.message) + '</p>' +
       (HOSTED ? '<p class="note">학생용 배포의 액세스가 "모든 사용자"인지, GAS_API 주소가 학생용 주소인지 확인해 주세요.</p>' : '') + '</div>';
@@ -344,7 +354,7 @@ function logout() {
   call('getPublicData').then(d => { st.data = d; st.ver = d.ver; render(); toast('로그아웃했어요.'); });
 }
 
-const SCREEN_VER = '10.13-A';
+const SCREEN_VER = '10.13-B';
 const FLASK = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M13 4h8M14 4v9L6 27a3 3 0 0 0 2.6 4.5h16.8A3 3 0 0 0 28 27l-8-14V4" fill="#E3DAFF" stroke="#3A3150" stroke-width="2.4" stroke-linejoin="round"/><path d="M9.3 22h15.4l2.6 5a2 2 0 0 1-1.8 3H8.5a2 2 0 0 1-1.8-3z" fill="#FF5C9E"/><circle cx="14" cy="26" r="1.6" fill="#fff"/><circle cx="19.5" cy="24.5" r="1.1" fill="#fff"/></svg>';
 function render() {
   const d = st.data, T = st.mode === 'teacher';
@@ -356,7 +366,7 @@ function render() {
   } else if (vw) vw.remove();
   $('#top').innerHTML = '<div><h1>' + FLASK + '과학실 교구 검색</h1><div class="sub">' + esc([d.school, T ? '교사용' : ''].filter(Boolean).join(' · ')) + '</div></div>' +
     (T ? '<div class="who">' + esc(d.me) + '<br><a href="' + esc(d.sheetUrl) + '" target="_blank">구글 시트 열기</a>' + (st.tok ? ' · <a href="#" id="logout">로그아웃</a>' : '') + '</div>'
-       : HOSTED ? ((window.GAS_API || window.TEACHER_URL) ? '<div class="who"><a class="tbtn" href="' + esc(window.GAS_API ? window.GAS_API + (window.GAS_API.indexOf('?') < 0 ? '?' : '&') + 'mode=teacher' : window.TEACHER_URL) + '" target="_top">교사용</a></div>' : '')
+       : (HOSTED && !window.GAS_API) ? ''
        : '<div class="who"><button class="tbtn" id="tlogin" type="button">교사용</button></div>');
   const tl = $('#tlogin'); if (tl) tl.onclick = () => (st.tok ? enterTeacher() : showLogin());
   const lo = $('#logout'); if (lo) lo.onclick = e => { e.preventDefault(); logout(); };
