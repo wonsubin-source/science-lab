@@ -134,6 +134,8 @@
   .form .reqnote{grid-column:1/-1;font-size:13px;color:var(--muted);margin:-4px 0 2px}
   .auto{grid-column:1/-1;background:#F4F1FF;border-radius:12px;padding:10px 12px;font-size:13.5px;color:#45338F}
   .auto b{color:var(--ink)}
+  .thumb{width:56px;height:56px;object-fit:cover;border-radius:10px;flex:none;background:#EEEAF6}
+  .photoprev{max-width:100%;max-height:220px;border-radius:12px;display:block;margin-top:6px}
   button.tbtn{border:0;cursor:pointer;font-family:inherit}
   .tbtn{display:inline-block;background:var(--violet);color:#fff !important;text-decoration:none;font-weight:700;font-size:15px;padding:9px 18px;border-radius:12px;box-shadow:0 2px 8px rgba(123,92,250,.3)}
   .choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
@@ -153,7 +155,7 @@
 <main class="wrap" id="main"><div class="loading"><div class="spin"></div>불러오는 중…</div></main>
 <div id="modal"></div>
 <div id="toast"></div>
-<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.13-B · GitHub<span id="srvver"></span></footer>
+<footer style="text-align:center;color:#9aa5a0;font-size:12px;padding:28px 16px 36px">화면 버전 10.13-E · GitHub<span id="srvver"></span></footer>
 <script src="config.js"></script>
 <script>
   // 주소는 config.js 파일에 적어 주세요. (config.js가 없으면 아래 값을 씁니다)
@@ -195,7 +197,7 @@ const TOK_KEY = 'sci_tok';
 const tokGet = () => { try { return localStorage.getItem(TOK_KEY) || sessionStorage.getItem(TOK_KEY) || ''; } catch (e) { return ''; } };
 const tokSet = (t, remember) => { try { (remember ? localStorage : sessionStorage).setItem(TOK_KEY, t); } catch (e) {} };
 const tokClear = () => { try { localStorage.removeItem(TOK_KEY); sessionStorage.removeItem(TOK_KEY); } catch (e) {} };
-const TEACHER_FNS = ['getTeacherData', 'saveItem', 'saveReagent', 'addLog', 'addWaste', 'receiveReagent', 'analyzeMsds', 'uploadMsds'];
+const TEACHER_FNS = ['getTeacherData', 'saveItem', 'saveReagent', 'addLog', 'addWaste', 'receiveReagent', 'analyzeMsds', 'uploadMsds', 'uploadPhoto'];
 function loginErr(m) {
   m = String(m || '');
   if (/LOGIN_NEEDED/.test(m)) { tokClear(); st.tok = ''; setTimeout(() => showLogin('로그인이 끝났어요. 다시 로그인해 주세요.'), 50); }
@@ -354,7 +356,7 @@ function logout() {
   call('getPublicData').then(d => { st.data = d; st.ver = d.ver; render(); toast('로그아웃했어요.'); });
 }
 
-const SCREEN_VER = '10.13-B';
+const SCREEN_VER = '10.13-E';
 const FLASK = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M13 4h8M14 4v9L6 27a3 3 0 0 0 2.6 4.5h16.8A3 3 0 0 0 28 27l-8-14V4" fill="#E3DAFF" stroke="#3A3150" stroke-width="2.4" stroke-linejoin="round"/><path d="M9.3 22h15.4l2.6 5a2 2 0 0 1-1.8 3H8.5a2 2 0 0 1-1.8-3z" fill="#FF5C9E"/><circle cx="14" cy="26" r="1.6" fill="#fff"/><circle cx="19.5" cy="24.5" r="1.1" fill="#fff"/></svg>';
 function render() {
   const d = st.data, T = st.mode === 'teacher';
@@ -570,11 +572,62 @@ function drawItems() {
   }
   bindItemCards(box);
 }
+// ── 교구 사진: 찍거나 골라서 → 작게 줄여 → 드라이브 '과학실 교구 사진' 폴더에 올리고 링크 채우기 ──
+const PHOTO_TOOLS = '<div class="full phototools" style="grid-column:1/-1"><div style="font-weight:600;margin-bottom:6px">교구 사진</div>' +
+  '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-ph="cam">📷 사진 찍기</button><button type="button" class="btn" data-ph="pick">🖼 사진 고르기</button>' +
+  '<button type="button" class="btn" data-ph="del" style="display:none">사진 빼기</button></div>' +
+  '<input type="file" accept="image/*" capture="environment" data-ph="camIn" style="display:none"><input type="file" accept="image/*" data-ph="pickIn" style="display:none">' +
+  '<div data-ph="out"></div><img class="photoprev" data-ph="prev" alt="" style="display:none"></div>';
+function shrinkImage(file, max) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      res({ b64: c.toDataURL('image/jpeg', 0.82).split(',')[1], mime: 'image/jpeg', preview: c.toDataURL('image/jpeg', 0.6) });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('사진을 읽지 못했어요. JPG나 PNG 사진으로 해 주세요.')); };
+    img.src = url;
+  });
+}
+function hookPhoto(f) {
+  const box = f.querySelector('.phototools'); if (!box) return;
+  const q = k => box.querySelector('[data-ph="' + k + '"]'), link = f.querySelector('[name=photo]'), prev = q('prev'), out = q('out');
+  const show = src => { prev.style.display = src ? '' : 'none'; if (src) prev.src = src; q('del').style.display = src ? '' : 'none'; };
+  prev.onerror = () => { prev.style.display = 'none'; };
+  if (link.value) show(driveImg(link.value));
+  link.addEventListener('change', () => show(link.value ? driveImg(link.value) : ''));
+  q('cam').onclick = () => q('camIn').click();
+  q('pick').onclick = () => q('pickIn').click();
+  q('del').onclick = () => { link.value = ''; show(''); out.innerHTML = '<div class="note">사진을 뺐어요. 저장을 누르면 반영돼요.</div>'; };
+  const go = inp => {
+    const file = inp.files[0]; inp.value = ''; if (!file) return;
+    out.innerHTML = '<div class="alert ac" style="margin:8px 0 0">사진을 줄이고 올리는 중이에요…</div>';
+    box.querySelectorAll('button').forEach(b => b.disabled = true);
+    shrinkImage(file, 1280).then(img => {
+      show(img.preview);
+      const name = String((f.querySelector('[name=name]') || {}).value || '').trim() || '교구';
+      return call('uploadPhoto', { b64: img.b64, mime: img.mime, name: name });
+    }).then(r => {
+      link.value = r.url;
+      out.innerHTML = '<div class="alert ok" style="margin:8px 0 0">✅ 사진을 올렸어요. 아래 <b>저장</b>을 누르면 교구에 붙어요.' +
+        (r.shared ? '' : '<br><span style="color:var(--bad)">학교 계정 설정 때문에 공개 공유가 안 돼서, 학생 화면에는 사진이 안 보일 수 있어요.</span>') + '</div>';
+    }).catch(e => { out.innerHTML = '<div class="alert bad" style="margin:8px 0 0">' + esc(e.message) + '</div>'; show(link.value ? driveImg(link.value) : ''); })
+      .then(() => box.querySelectorAll('button').forEach(b => b.disabled = false));
+  };
+  q('camIn').onchange = () => go(q('camIn'));
+  q('pickIn').onchange = () => go(q('pickIn'));
+}
+const thumbOf = u => String(u || '').replace(/sz=w\d+/, 'sz=w200');
 function itemCards(list) {
   return '<div class="list">' + list.map(it =>
-    '<button class="card' + (it._pending ? ' pending' : '') + '" data-item="' + esc(it.id) + '"><div class="t"><span class="n">' + hl(it.name, st.q) + pend(it) + '</span>' +
+    '<button class="card' + (it._pending ? ' pending' : '') + '" data-item="' + esc(it.id) + '">' +
+    (it.photo ? '<div style="display:flex;gap:10px;align-items:center"><img class="thumb" loading="lazy" src="' + esc(thumbOf(it.photo)) + '" alt="" onerror="this.remove()"><div style="flex:1;min-width:0">' : '') +
+    '<div class="t"><span class="n">' + hl(it.name, st.q) + pend(it) + '</span>' +
     '<span class="q">' + (it.qty !== '' ? num(it.qty) + ' ' + esc(it.unit || '') : '') + '</span></div>' +
     '<div class="p"><b>' + esc(it.spaceName) + '</b> › ' + esc(it.cabName) + ' › <b>' + esc(it.kanName) + '</b></div>' +
+    (it.photo ? '</div></div>' : '') +
     ((it.state && it.state !== '정상') || (st.mode === 'teacher' && it.note) ? '<div class="badges">' +
       (it.state && it.state !== '정상' ? '<span class="b warn">' + esc(it.state) + '</span>' : '') +
       (st.mode === 'teacher' && /확인/.test(it.note) ? '<span class="b warn">확인 필요</span>' : '') + '</div>' : '') +
@@ -650,7 +703,7 @@ function itemDetail(id) {
   openModal('<h2>' + esc(it.name) + '</h2><div class="note">' + (it.qty !== '' ? num(it.qty) + ' ' + esc(it.unit || '') + ' · ' : '') + esc(it.cat || '') + (it.state ? ' · ' + esc(it.state) : '') + '</div>' +
     '<div class="path"><div><small>방</small><strong>' + esc(it.spaceName) + '</strong></div><div><small>사물함</small><strong>' + esc(it.cabName) + '</strong></div><div><small>칸</small><strong>' + esc(it.kanName) + '</strong></div></div>' +
     (it.cabDesc ? '<p>📍 ' + esc(it.cabDesc) + '</p>' : '') +
-    (it.photo ? '<img class="plan" src="' + esc(it.photo) + '" alt="' + esc(it.name) + ' 사진">' : '') +
+    (it.photo ? '<a href="' + esc(it.photo.replace(/sz=w\d+/, 'sz=w2000')) + '" target="_blank" rel="noopener"><img class="plan" src="' + esc(it.photo) + '" alt="' + esc(it.name) + ' 사진" onerror="this.closest(\'a\').remove()"></a>' : '') +
     whereBlock(it.kan, it.cab, it.space) +
     (same.length ? '<p class="note" style="margin-top:14px">같은 칸에 있는 물건</p><div class="badges">' + same.map(x => '<span class="b">' + esc(x.name) + '</span>').join('') + '</div>' : '') +
     (st.mode === 'teacher' ? (it.note ? '<div class="alert warn">' + esc(it.note) + '</div>' : '') + '<div class="btns"><button class="btn pri" id="editItem">수정</button></div>' : ''));
@@ -707,11 +760,12 @@ function itemForm(it, preset) {
   const F = [{ k: 'name', label: '교구명', full: true, req: true }, { k: 'kw', label: '검색어 (다른 이름, 쉼표로 구분)', full: true, ph: '예: 돋보기, 확대경' },
     { k: 'cat', label: '분류', type: 'select', opts: o.cat, req: true }, { k: 'state', label: '상태', type: 'select', opts: o.state, req: true },
     { k: 'kan', label: '위치(칸)', type: 'kan', full: true, req: true }, { k: 'qty', label: '수량', type: 'number', req: true }, { k: 'unit', label: '단위', ph: '개, 대, 세트' },
-    { k: 'photo', label: '사진 링크 (드라이브 공유 링크)', full: true }, { k: 'note', label: '비고', type: 'area' }];
+    { k: 'photo', label: '사진 링크 (사진을 올리면 자동으로 채워져요)', full: true }, { k: 'note', label: '비고', type: 'area' }];
   const back = preset && preset.backCab;   // 사물함 화면에서 들어왔으면 저장 후 그 사물함 화면으로 돌아감
   const v = preset || (it ? { name: it.name, kw: it.kw, cat: it.cat, state: it.state, kan: it.kan, qty: it.qty, unit: it.unit, photo: it.photoRaw, note: it.note } : { state: '정상', unit: '개' });
   openModal('<h2>' + (it ? '교구 수정' : '새 교구') + '</h2>' + (it ? '<div class="note">' + esc(it.id) + '</div>' : '') +
-    '<div class="form" id="f">' + REQNOTE + F.map(f => field(f, v[f.k])).join('') + '</div><div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
+    '<div class="form" id="f">' + REQNOTE + F.map(f => (f.k === 'photo' ? PHOTO_TOOLS : '') + field(f, v[f.k])).join('') + '</div><div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="save">저장</button></div>');
+  hookPhoto($('#f'));
   $('#save').onclick = () => {
     const obj = readForm($('#f'), F); if (it) obj.id = it.id;
     if (!checkReq($('#f'), F, obj)) return;
@@ -731,7 +785,8 @@ function itemForm(it, preset) {
 }
 
 // ───────────────────────── 시약 ─────────────────────────
-const RF = ['전체', '유해화학물질', '확인 필요', '유효기한', 'MSDS 미게시', '옮기기 권장', '폐기예정'];
+const isWaste = r => r && (r.waste === true || r.waste === 'TRUE');
+const RF = ['전체', '사용 가능', '유해화학물질', '확인 필요', '유효기한', 'MSDS 미게시', '옮기기 권장', '폐기예정'];
 const hasStock = r => r.base !== '' && r.base != null;
 const stockTxt = r => hasStock(r) ? num(r.stock) + ' ' + esc(r.unit) : '재고 미입력';
 // MSDS 비대상일 가능성이 큰 이름 (확정은 공급업체 확인)
@@ -747,7 +802,7 @@ function rgFlags(r) {
   if (isYes(r.noMsds)) f.push(['MSDS 비대상', '']);
   else if (!isYes(r.msds)) f.push([maybeNoMsds(r.name) ? 'MSDS 미게시 · 비대상일 수 있음' : 'MSDS 미게시', 'warn']);
   if (r.check === '옮기기 권장') f.push(['옮기기 권장', 'bad']);
-  if (r.waste === true || r.waste === 'TRUE') f.push(['폐기예정', '']);
+  if (isWaste(r)) f.unshift(['폐기예정 · 사용 불가', 'bad']);
   if (/산화제/.test(r.prop)) f.push(['산화제', 'warn']);
   if (/인화성/.test(r.prop)) f.push(['인화성', 'warn']);
   return f;
@@ -759,7 +814,8 @@ function rgFilter(r) {
     case '유효기한': return r.expState === '기한 지남' || r.expState === '90일 이내';
     case 'MSDS 미게시': return !isYes(r.msds) && !isYes(r.noMsds);
     case '옮기기 권장': return r.check === '옮기기 권장';
-    case '폐기예정': return r.waste === true || r.waste === 'TRUE';
+    case '폐기예정': return isWaste(r);
+    case '사용 가능': return !isWaste(r);
     default: return true;
   }
 }
@@ -774,9 +830,9 @@ function viewRg() {
   drawRg();
 }
 function drawRg() {
-  const list = st.data.reagents.filter(r => rgFilter(r) && matches(st.rq, r.name, r.formula, r.cas, r.conc, usageOf(r)));
+  const list = st.data.reagents.filter(r => rgFilter(r) && matches(st.rq, r.name, r.formula, r.cas, r.conc, usageOf(r))).sort((a, b) => isWaste(a) - isWaste(b));
   $('#rres').innerHTML = list.length ? '<div class="list">' + list.map(r =>
-    '<button class="card' + (r._pending ? ' pending' : '') + '" data-rg="' + esc(r.id) + '"><div class="t"><span class="n">' + hl(r.name, st.rq) + pend(r) + (r.conc ? ' <span class="note">' + esc(r.conc) + '</span>' : '') + '</span>' +
+    '<button class="card' + (r._pending ? ' pending' : '') + '" data-rg="' + esc(r.id) + '"' + (isWaste(r) ? ' style="opacity:.6;background:#F4F2F8"' : '') + '><div class="t"><span class="n">' + hl(r.name, st.rq) + pend(r) + (r.conc ? ' <span class="note">' + esc(r.conc) + '</span>' : '') + '</span>' +
     '<span class="q">' + stockTxt(r) + '</span></div>' +
     '<div class="p">' + esc(r.loc || '위치 미입력') + '</div>' +
     (usageOf(r) ? '<div class="p" style="color:var(--ink,#3A3150)">🧪 ' + hl(usageOf(r), st.rq) + '</div>' : '') +
@@ -869,12 +925,14 @@ function buyStart() {
 // 이미 있는 시약 다시 구입
 function buyOld(preRid) {
   const d = st.data;
-  const opts = d.reagents.filter(r => !r._pending).map(r => '<option value="' + esc(r.id) + '"' + (r.id === preRid ? ' selected' : '') + '>' + esc(r.name + (r.spec ? ' · ' + r.spec : '') + ' (' + r.id + ')') + '</option>').join('');
+  const opts = d.reagents.filter(r => !r._pending && !isWaste(r)).map(r => '<option value="' + esc(r.id) + '"' + (r.id === preRid ? ' selected' : '') + '>' + esc(r.name + (r.spec ? ' · ' + r.spec : '') + ' (' + r.id + ')') + '</option>').join('');
   openModal('<h2>이미 있는 시약 입고</h2>' +
     '<div class="search" style="margin:10px 0 4px"><input id="bf" type="text" placeholder="시약 이름으로 목록 좁히기 (예: 염산)" autocomplete="off"></div>' +
     '<div class="form" id="bo">' + REQNOTE +
       '<label class="full" data-f="rid">시약<span class="req">*</span><select name="rid" id="brid"><option value="">— 시약 선택 —</option>' + opts + '</select></label>' +
       '<label data-f="date">입고일<span class="req">*</span><input type="date" name="date" value="' + today() + '"></label>' +
+      '<label data-f="size">이번에 산 병 용량<span class="req">*</span><span style="display:flex;gap:6px"><input name="sizeNum" type="number" step="any" inputmode="decimal" placeholder="500" style="flex:1;min-width:0">' +
+        '<select name="sizeUnit" style="width:84px">' + ['mL', 'L', 'g', 'kg'].map(u => '<option>' + u + '</option>').join('') + '</select></span><span class="note" style="font-weight:400">규격과 다른 병을 샀으면 바꿔 주세요</span></label>' +
       '<label data-f="bottles">산 병 수<span class="req">*</span><input type="number" name="bottles" min="1" step="1" inputmode="numeric" value="1"></label>' +
       '<label data-f="who">담당교사<span class="req">*</span><input name="who" value="' + esc(WHO()) + '" placeholder="이름"></label>' +
       '<label data-f="use">메모<input name="use" placeholder="예: 2학기 실험용 구입"></label>' +
@@ -882,29 +940,41 @@ function buyOld(preRid) {
     '</div><div class="btns"><button class="btn" data-close>취소</button><button class="btn pri" id="bsave">입고 기록하기</button></div>');
   const f = $('#bo'), sel = $('#brid');
   $('#bf').oninput = e => { const q = e.target.value; Array.from(sel.options).forEach((op, i) => { if (i) op.hidden = !matches(q, op.textContent); }); };
+  const sizeOf = () => { const v = f.querySelector('[name=sizeNum]').value; return v ? v + ' ' + f.querySelector('[name=sizeUnit]').value : ''; };
+  const fillSize = () => {   // 시약을 고르면 규격을 기본 병 용량으로
+    const r = d.reagents.find(x => x.id === sel.value), m = r && String(r.spec || '').replace(/\s+/g, ' ').trim().match(/^([\d.,]+)\s*(mL|ml|L|l|g|kg)$/i);
+    f.querySelector('[name=sizeNum]').value = m ? m[1].replace(/,/g, '') : '';
+    if (m) f.querySelector('[name=sizeUnit]').value = ({ ml: 'mL', l: 'L', g: 'g', kg: 'kg' })[m[2].toLowerCase()];
+  };
   const prev = () => {
     const r = d.reagents.find(x => x.id === sel.value), n = Number(f.querySelector('[name=bottles]').value) || 0, box = $('#bprev');
     if (!r) { box.innerHTML = '시약을 고르면 입고량이 자동으로 계산돼요.'; return; }
-    const sp = specPer(r.spec);
-    if (!sp) { box.innerHTML = '⚠ 이 시약은 규격이 "' + esc(r.spec || '비어 있음') + '"이라 입고량을 계산할 수 없어요. 시약 정보에서 규격을 "500 mL"처럼 먼저 고쳐 주세요.'; return; }
-    const amt = sp.per * n;
-    box.innerHTML = '자동으로 채워져요 → 입고량 <b>' + num(amt) + ' ' + sp.unit + '</b> (' + esc(r.spec) + ' × ' + n + '병) · 개수 <b>' + (Number(r.cnt) || 0) + ' → ' + ((Number(r.cnt) || 0) + n) + '병</b>' +
-      (hasStock(r) ? ' · 보유량 <b>' + num(r.stock) + ' → ' + num(Number(r.stock) + amt) + ' ' + esc(r.unit || sp.unit) + '</b>' : '') + ' · 출납대장에 입고 1줄';
+    const sp = specPer(sizeOf()), base = specPer(r.spec), unit = r.unit || (base && base.unit);
+    if (!sp) { box.innerHTML = '⚠ 이번에 산 병 용량을 숫자로 적어 주세요 (예: 500 mL).'; return; }
+    if (unit && unit !== sp.unit && /^(mL|g)$/.test(unit)) { box.innerHTML = '⚠ 이 시약은 <b>' + esc(unit) + '</b>(으)로 관리해요. 병 용량 단위를 ' + (unit === 'mL' ? 'mL 또는 L' : 'g 또는 kg') + '로 골라 주세요.'; return; }
+    const amt = sp.per * n, diff = base && base.per !== sp.per;
+    box.innerHTML = '자동으로 채워져요 → 입고량 <b>' + num(amt) + ' ' + sp.unit + '</b> (' + esc(sizeOf()) + ' × ' + n + '병)' + (diff ? ' <span class="b warn">규격(' + esc(r.spec) + ')과 다른 병</span>' : '') +
+      ' · 개수 <b>' + (Number(r.cnt) || 0) + ' → ' + ((Number(r.cnt) || 0) + n) + '병</b>' +
+      (hasStock(r) ? ' · 보유량 <b>' + num(r.stock) + ' → ' + num(Number(r.stock) + amt) + ' ' + esc(unit || sp.unit) + '</b>' : '') + ' · 출납대장에 입고 1줄';
   };
-  sel.onchange = prev; f.querySelector('[name=bottles]').oninput = prev; prev();
+  sel.onchange = () => { fillSize(); prev(); };
+  ['bottles', 'sizeNum', 'sizeUnit'].forEach(k => { const el = f.querySelector('[name=' + k + ']'); el.oninput = prev; el.onchange = prev; });
+  fillSize(); prev();
   $('#bsave').onclick = () => {
     const BF = [{ k: 'rid', label: '시약', req: true }, { k: 'date', label: '입고일', req: true }, { k: 'bottles', label: '산 병 수', req: true }, { k: 'who', label: '담당교사', req: true }, { k: 'use' }];
     const o = readForm(f, BF);
     if (!checkReq(f, BF, o)) return;
-    const r = d.reagents.find(x => x.id === o.rid), sp = specPer(r && r.spec), n = Number(o.bottles);
-    if (!sp) return toast('규격을 먼저 고쳐 주세요 (예: 500 mL).', true);
+    const size = sizeOf(), r = d.reagents.find(x => x.id === o.rid), sp = specPer(size), n = Number(o.bottles);
+    if (!sp) return toast('이번에 산 병 용량을 적어 주세요 (예: 500 mL).', true);
+    const bu = r.unit || (specPer(r.spec) || {}).unit;
+    if (bu && bu !== sp.unit && /^(mL|g)$/.test(bu)) return toast('이 시약은 ' + bu + '(으)로 관리해요. 병 용량 단위를 맞춰 주세요.', true);
     if (!(n > 0)) return toast('병 수는 1 이상으로 입력해 주세요.', true);
     setWHO(o.who);
     const amt = sp.per * n, snap = { cnt: r.cnt, stock: r.stock, lastLog: r.lastLog, inDate: r.inDate };
     const log = { date: o.date, label: r.label, rid: r.id, type: '입고', qty: amt, unit: r.unit || sp.unit, who: o.who, use: o.use || '구입', _pending: true };
     r.cnt = (Number(r.cnt) || 0) + n; r.inDate = o.date; if (hasStock(r)) r.stock = Number(r.stock) + amt; if (!r.lastLog || o.date > r.lastLog) r.lastLog = o.date;
     d.logs.push(log); closeModal(); rerender();
-    save('receiveReagent', { rid: r.id, date: o.date, bottles: n, who: o.who, use: o.use }, res => {
+    save('receiveReagent', { rid: r.id, date: o.date, bottles: n, who: o.who, use: o.use, size: size }, res => {
       const i = d.logs.indexOf(log); if (i >= 0) d.logs[i] = res.log; else d.logs.push(res.log);
       const j = d.reagents.indexOf(r); if (j >= 0) d.reagents[j] = res.reagent;
       rerender(); toast('입고를 기록했어요 · ' + r.name + ' ' + num(res.amount) + ' ' + res.unit);
@@ -1163,7 +1233,7 @@ function buyNew(preset) {
     $('#nprev').innerHTML = '<b>자동으로 채워지는 것</b><br>시약ID(저장할 때) · 관리단위 <b>' + (sp ? sp.unit : '—') + '</b> · 입고량 <b>' + (sp && n ? num(sp.per * n) + ' ' + sp.unit : '—') + '</b>' +
       ' · 현재 보유량 <b>' + (sp && n ? num(sp.per * n) + ' ' + sp.unit : '—') + '</b>' + (pl ? ' · 위치 <b>' + esc([pl.spaceName, pl.cabName, pl.kanName].join(' › ')) + '</b>' : '') +
       '<br>출납대장 입고 1줄, 분류·추천 보관 위치·유해화학물질 기준농도는 저장하면 계산돼요.';
-    const nm = norm(f.querySelector('[name=name]').value), same = nm ? d.reagents.filter(r => norm(r.name) === nm) : [];
+    const nm = norm(f.querySelector('[name=name]').value), same = nm ? d.reagents.filter(r => norm(r.name) === nm && !isWaste(r)) : [];
     $('#dup').innerHTML = same.length ? '<div class="alert warn" style="margin:0">이미 목록에 있는 시약이에요 (' + same.map(r => esc(r.name + (r.spec ? ' ' + r.spec : '') + ' · ' + r.id)).join(', ') +
       '). 같은 시약을 또 산 거라면 <button class="btn" id="toOld" style="padding:4px 10px;font-size:13px">이미 있는 시약으로 입고</button></div>' : '';
     const t = $('#toOld'); if (t) t.onclick = () => buyOld(same[0].id);
@@ -1201,7 +1271,7 @@ function buyNew(preset) {
 // ───────────────────────── 출납 ─────────────────────────
 function viewLog() {
   const d = st.data;
-  const opts = d.reagents.map(r => '<option value="' + esc(r.id) + '"' + (r.id === st.logRid ? ' selected' : '') + '>' + esc(r.name + (r.spec ? ' ' + r.spec : '') + ' · ' + (r.loc.split(' › ').slice(1).join(' ') || '') + ' (' + r.id + ')') + '</option>').join('');
+  const opts = d.reagents.slice().sort((a, b) => isWaste(a) - isWaste(b)).map(r => '<option value="' + esc(r.id) + '"' + (r.id === st.logRid ? ' selected' : '') + '>' + esc(r.name + (r.spec ? ' ' + r.spec : '') + ' · ' + (String(r.loc || '').split(' › ').slice(1).join(' ') || '') + ' (' + r.id + ')' + (isWaste(r) ? ' — 폐기예정(사용 불가)' : '')) + '</option>').join('');
   const recent = d.logs.slice(-40).reverse();
   $('#main').innerHTML = '<div class="alert ac" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><span>새로 산 시약은 여기가 아니라 <b>시약 구입·입고</b>에서 기록해요. 입고 기록은 자동으로 남아요.</span><button class="btn pri" id="goBuy">시약 구입·입고</button></div>' +
     '<div class="panel"><h3>사용·폐기 기록 추가</h3>' +
@@ -1232,7 +1302,8 @@ function viewLog() {
     const after = !hasStock(r) ? '' : Number(r.stock) + (type === '입고' ? q : -q);
     pre.style.display = 'block';
     pre.className = 'alert ' + (after !== '' && after < 0 ? 'bad' : 'ac');
-    pre.innerHTML = '현재 보유량 <b>' + stockTxt(r) + '</b>' + (q && after !== '' ? ' → 기록 후 <b>' + num(after) + ' ' + esc(r.unit) + '</b>' : '') +
+    if (isWaste(r) && type === '사용') { pre.style.display = 'block'; pre.className = 'alert bad'; pre.innerHTML = '🚫 <b>폐기예정 시약이라 사용할 수 없어요.</b> 폐기 처리할 때는 구분을 <b>폐기</b>로 골라 주세요.'; return; }
+    pre.innerHTML = (isWaste(r) ? '폐기예정 시약 · ' : '') + '현재 보유량 <b>' + stockTxt(r) + '</b>' + (q && after !== '' ? ' → 기록 후 <b>' + num(after) + ' ' + esc(r.unit) + '</b>' : '') +
       (after !== '' && after < 0 ? '<br>보유량보다 많아요. 시약 정보의 기초재고량을 확인해 주세요.' : '') + (r.haz === 'O' ? '<br>⚠ 유해화학물질이에요.' : '');
   };
   sel.onchange = upd; f.querySelector('[name=qty]').oninput = upd; f.querySelector('[name=type]').onchange = upd; upd();
@@ -1240,6 +1311,8 @@ function viewLog() {
     const LF = [{ k: 'rid', label: '시약', req: true }, { k: 'date', label: '날짜', req: true }, { k: 'type', label: '구분', req: true }, { k: 'qty', label: '수량', req: true }, { k: 'who', label: '담당교사', req: true }, { k: 'use' }];
     const obj = readForm(f, LF);
     if (!checkReq(f, LF, obj)) return;
+    const wr = d.reagents.find(x => x.id === obj.rid);
+    if (wr && isWaste(wr) && obj.type === '사용') return toast('폐기예정 시약이라 사용 기록을 남길 수 없어요. 폐기할 때는 구분을 [폐기]로 골라 주세요.', true);
     if (!(Number(obj.qty) > 0)) return toast('수량은 0보다 큰 숫자로 입력해 주세요.', true);
     try { if (obj.who) localStorage.setItem('sci_who', obj.who); } catch (e) {}
     const r = d.reagents.find(x => x.id === obj.rid), q = Number(obj.qty), sign = obj.type === '입고' ? 1 : -1;
